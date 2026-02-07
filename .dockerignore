@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+**/.next
+out
+**/out
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+**/.coverage
+.nyc_output
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Foundry (smart contracts)
+packages/contracts/cache
+packages/contracts/out
+packages/contracts/broadcast
+
+# Misc
+*.md
+!README.md
+LICENSE
+CHANGELOG.md

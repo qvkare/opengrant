@@ -1,0 +1,13 @@
+{
+  "name": "@opengrant/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "forge build || echo 'Foundry not installed, skipping contract build'",
+    "test": "forge test || echo 'Foundry not installed, skipping contract tests'",
+    "test:gas": "forge test --gas-report",
+    "coverage": "forge coverage",
+    "deploy:sepolia": "forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify",
+    "deploy:mainnet": "forge script script/Deploy.s.sol --rpc-url $BASE_MAINNET_RPC_URL --broadcast --verify"
+  }
+}

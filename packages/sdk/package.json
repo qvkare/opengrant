@@ -1,0 +1,49 @@
+{
+  "name": "@opengrant/sdk",
+  "version": "0.1.0",
+  "description": "OpenGrant SDK - Make paid API calls with x402 micropayments",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "^2.45.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "keywords": [
+    "opengrant",
+    "sdk",
+    "api",
+    "micropayments",
+    "x402",
+    "crypto",
+    "usdc",
+    "base"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opengrant/opengrant"
+  },
+  "license": "MIT"
+}
