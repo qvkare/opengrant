@@ -146,7 +146,13 @@ async function verifyPaymentWithFacilitator(
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as {
+      success?: boolean;
+      txHash?: string;
+      txID?: string;
+      errorReason?: string;
+      error?: string;
+    };
 
     if (response.ok && result.success) {
       return {
