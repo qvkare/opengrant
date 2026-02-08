@@ -16,6 +16,11 @@ interface IRegistry {
     function incrementAPIStats(bytes32 apiId, uint256 calls, uint256 revenue) external;
 }
 
+// Interface for fee discount oracle
+interface IFeeDiscountOracle {
+    function getEffectiveFeeBPS(address user) external view returns (uint256);
+}
+
 /**
  * @title OpenGrantPayments
  * @notice Handles payment recording, distribution, and settlement for OpenGrant
@@ -56,6 +61,16 @@ contract OpenGrantPayments is
 
     // Authorized callers (API gateway, CRE workflows)
     mapping(address => bool) public authorizedCallers;
+
+    // Fee discount oracle (reads GRANT staking tiers)
+    IFeeDiscountOracle public feeDiscountOracle;
+
+    // Staking reward pool (receives 30% of platform fees)
+    address public stakingRewardPool;
+
+    // Staker reward split (in BPS, default 3000 = 30%)
+    uint256 public stakerSplitBPS = 3000;
+    uint256 public constant MAX_STAKER_SPLIT_BPS = 5000; // Max 50%
 
     // ============================================
     // CONSTRUCTOR
@@ -172,7 +187,12 @@ contract OpenGrantPayments is
     }
 
     /**
-     * @notice Internal distribution logic
+     * @notice Internal distribution logic with dynamic fee and staker revenue share
+     * @dev Fee split: platform fee is divided between treasury and staking reward pool.
+     *      When stakingRewardPool is set, stakerSplitBPS% of the fee is transferred as USDC
+     *      to the GRANTStaking contract. The owner must then call GRANTStaking.notifyUSDCReward()
+     *      to activate distribution to stakers. A StakingPoolFunded event is emitted for
+     *      off-chain monitoring to trigger the notification call.
      */
     function _distributeToVault(
         bytes32 apiId,
@@ -189,16 +209,37 @@ contract OpenGrantPayments is
             "OpenGrantPayments: insufficient pending earnings"
         );
 
-        // Calculate fees
-        platformFee = (amount * platformFeeBPS) / BPS_DENOMINATOR;
+        // Calculate fees — use oracle if set (publisher staking discount), otherwise default
+        uint256 effectiveFeeBPS = platformFeeBPS;
+        if (address(feeDiscountOracle) != address(0)) {
+            effectiveFeeBPS = feeDiscountOracle.getEffectiveFeeBPS(publisher);
+        }
+        platformFee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
         uint256 netAmount = amount - platformFee;
 
         // Update state
         publisherPendingEarnings[publisher] -= amount;
         totalPlatformFeesCollected += platformFee;
 
-        // Transfer platform fee
-        usdc.safeTransfer(platformFeeReceiver, platformFee);
+        // Split platform fee: treasury + staker reward pool
+        uint256 stakerShare = 0;
+        if (stakingRewardPool != address(0) && platformFee > 0) {
+            stakerShare = (platformFee * stakerSplitBPS) / BPS_DENOMINATOR;
+            uint256 treasuryShare = platformFee - stakerShare;
+
+            if (treasuryShare > 0) {
+                usdc.safeTransfer(platformFeeReceiver, treasuryShare);
+            }
+            if (stakerShare > 0) {
+                usdc.safeTransfer(stakingRewardPool, stakerShare);
+                emit StakingPoolFunded(stakingRewardPool, stakerShare);
+            }
+        } else {
+            // No staking pool configured — all fees to treasury
+            if (platformFee > 0) {
+                usdc.safeTransfer(platformFeeReceiver, platformFee);
+            }
+        }
 
         // Approve and distribute to vault
         usdc.forceApprove(vault, netAmount);
@@ -207,6 +248,31 @@ contract OpenGrantPayments is
         emit PaymentDistributed(apiId, publisher, amount, platformFee, netAmount);
 
         return platformFee;
+    }
+
+    // ============================================
+    // SETTLEMENT MARKING
+    // ============================================
+
+    /**
+     * @inheritdoc IOpenGrantPayments
+     * @dev Called by authorized caller (CRE/gateway) after distributeToVault to mark
+     *      individual payment records as settled. This is a separate step because
+     *      distribution operates at apiId+amount level, while settlement tracking
+     *      is per-transaction for off-chain auditability.
+     */
+    function markPaymentsSettled(
+        bytes32[] calldata txHashes
+    ) external override onlyAuthorized {
+        for (uint256 i = 0; i < txHashes.length; i++) {
+            require(
+                paymentRecords[txHashes[i]].amount > 0,
+                "OpenGrantPayments: unknown payment"
+            );
+            paymentRecords[txHashes[i]].settled = true;
+        }
+
+        emit PaymentsMarkedSettled(txHashes);
     }
 
     // ============================================
@@ -285,6 +351,31 @@ contract OpenGrantPayments is
     function setRegistry(address _registry) external onlyOwner {
         require(_registry != address(0), "OpenGrantPayments: invalid registry");
         registry = IRegistry(_registry);
+    }
+
+    /**
+     * @notice Set fee discount oracle address
+     * @param _oracle New oracle address (or zero to disable)
+     */
+    function setFeeDiscountOracle(address _oracle) external onlyOwner {
+        feeDiscountOracle = IFeeDiscountOracle(_oracle);
+    }
+
+    /**
+     * @notice Set staking reward pool address
+     * @param _pool New staking reward pool address (or zero to disable)
+     */
+    function setStakingRewardPool(address _pool) external onlyOwner {
+        stakingRewardPool = _pool;
+    }
+
+    /**
+     * @notice Set staker split percentage of platform fees
+     * @param _splitBPS Split in basis points (e.g., 3000 = 30%)
+     */
+    function setStakerSplitBPS(uint256 _splitBPS) external onlyOwner {
+        require(_splitBPS <= MAX_STAKER_SPLIT_BPS, "OpenGrantPayments: split too high");
+        stakerSplitBPS = _splitBPS;
     }
 
     /**

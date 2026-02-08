@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
-import { createPublicClient, http, parseUnits } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { parseUnits } from "viem";
 import { config } from "../config/index.js";
 
 /**
@@ -67,14 +66,8 @@ export interface X402MiddlewareConfig {
   network?: string;
 }
 
-// USDC on Base (6 decimals)
+// USDC on all chains (6 decimals)
 const USDC_DECIMALS = 6;
-
-// Network identifiers
-const NETWORKS = {
-  baseMainnet: "eip155:8453",
-  baseSepolia: "eip155:84532",
-} as const;
 
 /**
  * Parse price string to USDC amount
@@ -179,10 +172,8 @@ async function verifyPaymentWithFacilitator(
 export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): RequestHandler {
   const { routes, payTo, facilitatorUrl = config.x402.facilitatorUrl } = middlewareConfig;
 
-  // Determine network based on chain ID
-  const network =
-    middlewareConfig.network ||
-    (config.blockchain.chainId === 8453 ? NETWORKS.baseMainnet : NETWORKS.baseSepolia);
+  // Determine network from chain config (CAIP-2 format: eip155:<chainId>)
+  const network = middlewareConfig.network || config.blockchain.network;
 
   // Parse route configurations
   const parsedRoutes = new Map<string, ParsedRouteConfig>();

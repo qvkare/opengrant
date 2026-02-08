@@ -9,56 +9,80 @@ import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy
 
 /**
  * @title DeployScript
- * @notice Deploys the OpenGrant contracts to Base Sepolia or Base Mainnet
+ * @notice Deploys the OpenGrant contracts to any supported EVM chain
  *
- * @dev Usage:
+ * @dev Supported networks:
+ *   - Base Mainnet (8453)
+ *   - Base Sepolia (84532)
+ *   - Arbitrum One (42161)
+ *   - Arbitrum Sepolia (421614)
+ *   - Linea Mainnet (59144)
+ *   - Linea Sepolia (59141)
+ *   - Polygon PoS (137)
+ *   - Polygon Amoy (80002)
+ *   - Ethereum Mainnet (1)
+ *
+ * Usage:
  * 1. Set environment variables:
  *    - DEPLOYER_PRIVATE_KEY: Private key of deployer
  *    - PLATFORM_WALLET: Address to receive platform fees
- *    - BASE_SEPOLIA_RPC_URL or BASE_MAINNET_RPC_URL
  *
- * 2. Deploy to Base Sepolia:
+ * 2. Deploy:
  *    forge script script/Deploy.s.sol:DeployScript \
- *      --rpc-url $BASE_SEPOLIA_RPC_URL \
- *      --broadcast --verify -vvvv
- *
- * 3. Deploy to Base Mainnet:
- *    forge script script/Deploy.s.sol:DeployScript \
- *      --rpc-url $BASE_MAINNET_RPC_URL \
+ *      --rpc-url $RPC_URL \
  *      --broadcast --verify -vvvv
  */
 contract DeployScript is Script {
-    // USDC addresses
-    address constant USDC_BASE_MAINNET = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant USDC_BASE_SEPOLIA = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+    // ============================================
+    // NATIVE USDC ADDRESSES (Circle-issued, EIP-3009)
+    // ============================================
+
+    // Mainnets
+    address constant USDC_ETHEREUM       = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant USDC_BASE           = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant USDC_ARBITRUM       = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address constant USDC_LINEA          = 0xfece4462d57bd51a6a552365a011b95f0e16d9b7;
+    address constant USDC_POLYGON        = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
+
+    // Testnets
+    address constant USDC_BASE_SEPOLIA   = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+    address constant USDC_ARB_SEPOLIA    = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
+    address constant USDC_LINEA_SEPOLIA  = 0xB33a204B04C0BBe78eB4252c6264c5C94e2Fb0dB;
+    address constant USDC_POLYGON_AMOY   = 0x41E94Eb71Ef8C9770bAd3BbD3E492065b2B8cE75;
 
     // Platform fee: 5% (500 basis points)
     uint256 constant PLATFORM_FEE_BPS = 500;
+
+    /**
+     * @notice Resolve USDC address and network name from chain ID
+     */
+    function _getChainConfig() internal view returns (address usdc, string memory name) {
+        uint256 chainId = block.chainid;
+
+        if (chainId == 1)      return (USDC_ETHEREUM,      "Ethereum Mainnet");
+        if (chainId == 8453)   return (USDC_BASE,          "Base Mainnet");
+        if (chainId == 42161)  return (USDC_ARBITRUM,      "Arbitrum One");
+        if (chainId == 59144)  return (USDC_LINEA,         "Linea Mainnet");
+        if (chainId == 137)    return (USDC_POLYGON,       "Polygon PoS");
+        if (chainId == 84532)  return (USDC_BASE_SEPOLIA,  "Base Sepolia");
+        if (chainId == 421614) return (USDC_ARB_SEPOLIA,   "Arbitrum Sepolia");
+        if (chainId == 59141)  return (USDC_LINEA_SEPOLIA, "Linea Sepolia");
+        if (chainId == 80002)  return (USDC_POLYGON_AMOY,  "Polygon Amoy");
+
+        revert("Unsupported chain — add USDC address for this chain ID");
+    }
 
     function run() external {
         // Get deployment parameters from environment
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address platformWallet = vm.envAddress("PLATFORM_WALLET");
 
-        // Determine USDC address based on chain
-        uint256 chainId = block.chainid;
-        address usdcAddress;
-        string memory networkName;
+        // Resolve chain config
+        (address usdcAddress, string memory networkName) = _getChainConfig();
 
-        if (chainId == 8453) {
-            // Base Mainnet
-            usdcAddress = USDC_BASE_MAINNET;
-            networkName = "Base Mainnet";
-        } else if (chainId == 84532) {
-            // Base Sepolia
-            usdcAddress = USDC_BASE_SEPOLIA;
-            networkName = "Base Sepolia";
-        } else {
-            revert("Unsupported chain");
-        }
-
-        console.log("Deploying to:", networkName);
-        console.log("Chain ID:", chainId);
+        console.log("=== OpenGrant Deployment ===");
+        console.log("Network:", networkName);
+        console.log("Chain ID:", block.chainid);
         console.log("USDC Address:", usdcAddress);
         console.log("Platform Wallet:", platformWallet);
         console.log("");
@@ -94,7 +118,7 @@ contract DeployScript is Script {
         );
         console.log("Payments:", address(payments));
 
-        // 4. Deploy Factory (args: usdc, platformFeeReceiver, owner)
+        // 4. Deploy Factory
         OpenGrantFactory factory = new OpenGrantFactory(
             usdcAddress,
             platformWallet,
@@ -111,22 +135,25 @@ contract DeployScript is Script {
         registry.setPaymentsContract(address(payments));
         console.log("Registry configured with payments contract");
 
-        // 7. Authorize factory to record payments
-        payments.setAuthorizedCaller(address(factory), true);
-        console.log("Factory authorized as payments caller");
-
         vm.stopBroadcast();
+
+        // NOTE: After deployment, authorize the API gateway as payments caller:
+        //   payments.setAuthorizedCaller(GATEWAY_ADDRESS, true);
+        // The gateway is the entity that calls recordPayment() after x402 verification.
 
         // Print summary
         console.log("");
         console.log("=== Deployment Summary ===");
         console.log("Network:", networkName);
+        console.log("Chain ID:", block.chainid);
         console.log("Registry (Proxy):", address(registry));
         console.log("Registry (Impl):", address(registryImpl));
         console.log("Payments:", address(payments));
         console.log("Factory:", address(factory));
         console.log("");
         console.log("Add these to your .env:");
+        console.log("CHAIN_ID=", block.chainid);
+        console.log("USDC_ADDRESS=", usdcAddress);
         console.log("OPENGRANT_REGISTRY_ADDRESS=", address(registry));
         console.log("OPENGRANT_PAYMENTS_ADDRESS=", address(payments));
         console.log("OPENGRANT_FACTORY_ADDRESS=", address(factory));
@@ -170,6 +197,7 @@ contract VerifyDeploymentScript is Script {
         OpenGrantPayments payments = OpenGrantPayments(paymentsAddress);
 
         console.log("=== Verification ===");
+        console.log("Chain ID:", block.chainid);
         console.log("Registry:", registryAddress);
         console.log("  Payments Contract:", registry.paymentsContract());
         console.log("  Owner:", registry.owner());

@@ -17,17 +17,25 @@ export {
   TimeoutError,
 } from "./errors.js";
 
-// Constants
+// Constants & Multi-chain
 export {
   DEFAULT_BASE_URL,
   X402_VERSION,
-  BASE_CHAIN_ID,
-  USDC_ADDRESS,
   USDC_DECIMALS,
-  USDC_DOMAIN,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
   HTTP_STATUS,
   ERROR_CODES,
+  // Multi-chain
+  SUPPORTED_CHAINS,
+  DEFAULT_CHAIN_ID,
+  getChainConfig,
+  getUSDCAddress,
+  getNetworkId,
+  getUSDCDomain,
+  // Legacy (backward compat)
+  BASE_CHAIN_ID,
+  USDC_ADDRESS,
+  USDC_DOMAIN,
 } from "./constants.js";
 
 // Types
@@ -42,3 +50,5 @@ export type {
   WalletBalance,
   APIInfo,
 } from "./types.js";
+
+export type { ChainConfig } from "./constants.js";

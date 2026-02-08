@@ -64,6 +64,21 @@ contract MockVault {
     }
 }
 
+// Mock Fee Discount Oracle
+contract MockFeeOracle {
+    mapping(address => uint256) public fees;
+    uint256 public defaultFee = 500;
+
+    function setFee(address user, uint256 fee) external {
+        fees[user] = fee;
+    }
+
+    function getEffectiveFeeBPS(address user) external view returns (uint256) {
+        if (fees[user] > 0) return fees[user];
+        return defaultFee;
+    }
+}
+
 contract OpenGrantPaymentsTest is Test {
     MockUSDC public usdc;
     MockRegistry public mockRegistry;
@@ -417,5 +432,78 @@ contract OpenGrantPaymentsTest is Test {
 
         // 5% of 1 = 0 (rounds down)
         assertEq(payments.totalPlatformFeesCollected(), 0);
+    }
+
+    // ============================================
+    // ORACLE INTEGRATION TESTS
+    // ============================================
+
+    function test_OracleDiscount_AppliedOnDistribution() public {
+        // Deploy and configure oracle
+        MockFeeOracle oracle = new MockFeeOracle();
+        // Publisher1 gets Diamond tier (0.5%)
+        oracle.setFee(publisher1, 50);
+
+        vm.prank(owner);
+        payments.setFeeDiscountOracle(address(oracle));
+
+        // Record and distribute
+        vm.prank(authorizedCaller);
+        payments.recordPayment(apiId1, consumer1, 1000000, keccak256("tx1"));
+
+        vm.prank(authorizedCaller);
+        payments.distributeToVault(apiId1, 1000000);
+
+        // Fee should be 0.5% = 5000 (not 5% = 50000)
+        assertEq(payments.totalPlatformFeesCollected(), 5000);
+        assertEq(mockVault.receivedAmount(), 995000);
+    }
+
+    function test_OracleDiscount_DefaultForNonStaker() public {
+        // Oracle returns default 500 BPS (5%) for non-stakers
+        MockFeeOracle oracle = new MockFeeOracle();
+
+        vm.prank(owner);
+        payments.setFeeDiscountOracle(address(oracle));
+
+        vm.prank(authorizedCaller);
+        payments.recordPayment(apiId1, consumer1, 1000000, keccak256("tx1"));
+
+        vm.prank(authorizedCaller);
+        payments.distributeToVault(apiId1, 1000000);
+
+        // 5% default — same as platformFeeBPS
+        assertEq(payments.totalPlatformFeesCollected(), 50000);
+    }
+
+    function test_OracleDisabled_UsesPlatformFee() public {
+        // No oracle set — should use platformFeeBPS
+        assertEq(address(payments.feeDiscountOracle()), address(0));
+
+        vm.prank(authorizedCaller);
+        payments.recordPayment(apiId1, consumer1, 1000000, keccak256("tx1"));
+
+        vm.prank(authorizedCaller);
+        payments.distributeToVault(apiId1, 1000000);
+
+        assertEq(payments.totalPlatformFeesCollected(), 50000);
+    }
+
+    function test_StakerSplit_WithPool() public {
+        address stakingPool = address(0x999);
+
+        vm.startPrank(owner);
+        payments.setStakingRewardPool(stakingPool);
+        vm.stopPrank();
+
+        vm.prank(authorizedCaller);
+        payments.recordPayment(apiId1, consumer1, 1000000, keccak256("tx1"));
+
+        vm.prank(authorizedCaller);
+        payments.distributeToVault(apiId1, 1000000);
+
+        // Fee = 50000 (5%), staker split = 30% of 50000 = 15000, treasury = 35000
+        assertEq(usdc.balanceOf(stakingPool), 15000);
+        assertEq(usdc.balanceOf(platformFeeReceiver), 35000);
     }
 }

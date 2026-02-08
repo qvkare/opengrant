@@ -1,13 +1,14 @@
 import { createPublicClient, http, formatUnits } from "viem";
-import { base } from "viem/chains";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_TIMEOUT,
   DEFAULT_MAX_RETRIES,
+  DEFAULT_CHAIN_ID,
   HTTP_STATUS,
-  USDC_ADDRESS,
   USDC_DECIMALS,
   X402_VERSION,
+  getChainConfig,
+  getUSDCAddress,
 } from "./constants.js";
 import {
   OpenGrantError,
@@ -49,17 +50,22 @@ const USDC_ABI = [
  * ```typescript
  * import { OpenGrant } from '@opengrant/sdk';
  *
+ * // Base (default)
  * const client = new OpenGrant({
  *   apiKey: 'og_live_xxx',
  *   privateKey: '0x...',
  * });
  *
- * // Make an API call
+ * // Arbitrum
+ * const arbClient = new OpenGrant({
+ *   apiKey: 'og_live_xxx',
+ *   privateKey: '0x...',
+ *   chainId: 42161,
+ * });
+ *
  * const response = await client.call('tailwind', 'POST', '/v1/generate', {
  *   body: { input: 'button primary' }
  * });
- *
- * console.log(response.data);
  * ```
  */
 export class OpenGrant {
@@ -69,8 +75,10 @@ export class OpenGrant {
   private readonly autoRetry: boolean;
   private readonly maxRetries: number;
   private readonly debug: boolean;
+  private readonly chainId: number;
   private readonly signer?: PaymentSigner;
   private readonly publicClient;
+  private readonly usdcAddress: `0x${string}`;
 
   constructor(config: OpenGrantConfig) {
     if (!config.apiKey) {
@@ -87,18 +95,24 @@ export class OpenGrant {
     this.autoRetry = config.autoRetry ?? true;
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.debug = config.debug ?? false;
+    this.chainId = config.chainId ?? DEFAULT_CHAIN_ID;
+
+    // Resolve chain-specific config
+    const chainConfig = getChainConfig(this.chainId);
+    this.usdcAddress = chainConfig.usdc;
+    const rpcUrl = config.rpcUrl ?? chainConfig.rpcUrl;
 
     // Initialize signer if wallet credentials provided
     if (config.privateKey) {
-      this.signer = new PaymentSigner(config.privateKey);
+      this.signer = new PaymentSigner(config.privateKey, this.chainId);
     } else if (config.walletClient) {
-      this.signer = new PaymentSigner(config.walletClient);
+      this.signer = new PaymentSigner(config.walletClient, this.chainId);
     }
 
     // Initialize public client for reading blockchain state
     this.publicClient = createPublicClient({
-      chain: base,
-      transport: http(),
+      chain: { id: chainConfig.chainId, name: chainConfig.name } as any,
+      transport: http(rpcUrl),
     });
   }
 
@@ -213,9 +227,9 @@ export class OpenGrant {
       );
     }
 
-    // Check balance
+    // Check balance on the configured chain
     const balance = await this.publicClient.readContract({
-      address: USDC_ADDRESS,
+      address: this.usdcAddress,
       abi: USDC_ABI,
       functionName: "balanceOf",
       args: [this.signer.address as `0x${string}`],
@@ -428,7 +442,7 @@ export class OpenGrant {
   }
 
   /**
-   * Get wallet balance
+   * Get wallet balance on the configured chain
    */
   async getBalance(): Promise<WalletBalance> {
     if (!this.signer) {
@@ -441,7 +455,7 @@ export class OpenGrant {
 
     const [usdc, eth] = await Promise.all([
       this.publicClient.readContract({
-        address: USDC_ADDRESS,
+        address: this.usdcAddress,
         abi: USDC_ABI,
         functionName: "balanceOf",
         args: [this.signer.address as `0x${string}`],

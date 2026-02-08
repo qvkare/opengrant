@@ -8,6 +8,10 @@ export interface OpenGrantConfig {
   apiKey: string;
   /** Base URL for OpenGrant API (defaults to https://api.opengrant.dev) */
   baseUrl?: string;
+  /** Chain ID for payment network (default: 8453 = Base). Supports Base, Arbitrum, Linea, Polygon. */
+  chainId?: number;
+  /** Custom RPC URL (overrides the default for the selected chain) */
+  rpcUrl?: string;
   /** Wallet client for signing payment authorizations */
   walletClient?: WalletClient<Transport, Chain, Account>;
   /** Private key for signing (alternative to walletClient) */

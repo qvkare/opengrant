@@ -3,34 +3,40 @@ import {
   http,
   type WalletClient,
   type Account,
+  type Chain,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
 import {
-  USDC_DOMAIN,
+  DEFAULT_CHAIN_ID,
+  getChainConfig,
+  getUSDCDomain,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
 } from "./constants.js";
 import type { PaymentDetails, PaymentAuthorization } from "./types.js";
 
 /**
- * Payment signer for EIP-3009 TransferWithAuthorization
+ * Payment signer for EIP-3009 TransferWithAuthorization.
+ * Supports any chain with native USDC (EIP-3009).
  */
 export class PaymentSigner {
   private walletClient: WalletClient;
   private account: Account;
+  private chainId: number;
 
   constructor(
-    walletClientOrPrivateKey:
-      | WalletClient
-      | `0x${string}`
+    walletClientOrPrivateKey: WalletClient | `0x${string}`,
+    chainId: number = DEFAULT_CHAIN_ID
   ) {
+    this.chainId = chainId;
+
     if (typeof walletClientOrPrivateKey === "string") {
-      // Private key provided
+      // Private key provided — create wallet client for the specified chain
       this.account = privateKeyToAccount(walletClientOrPrivateKey);
+      const chainConfig = getChainConfig(chainId);
       this.walletClient = createWalletClient({
         account: this.account,
-        chain: base,
-        transport: http(),
+        chain: { id: chainConfig.chainId, name: chainConfig.name } as Chain,
+        transport: http(chainConfig.rpcUrl),
       });
     } else {
       // Wallet client provided
@@ -50,7 +56,8 @@ export class PaymentSigner {
   }
 
   /**
-   * Sign a payment authorization using EIP-3009 TransferWithAuthorization
+   * Sign a payment authorization using EIP-3009 TransferWithAuthorization.
+   * Uses the chain-specific USDC EIP-712 domain.
    */
   async signPayment(payment: PaymentDetails): Promise<PaymentAuthorization> {
     const from = this.account.address;
@@ -60,10 +67,13 @@ export class PaymentSigner {
     const validBefore = payment.validUntil;
     const nonce = payment.nonce as `0x${string}`;
 
+    // Use chain-specific USDC domain for EIP-712 signing
+    const domain = getUSDCDomain(this.chainId);
+
     // Sign the EIP-712 typed data
     const signature = await this.walletClient.signTypedData({
       account: this.account,
-      domain: USDC_DOMAIN,
+      domain,
       types: TRANSFER_WITH_AUTHORIZATION_TYPES,
       primaryType: "TransferWithAuthorization",
       message: {
@@ -97,16 +107,22 @@ export class PaymentSigner {
 
 /**
  * Create a payment signer from a private key
+ * @param privateKey Wallet private key
+ * @param chainId Target chain (default: Base 8453)
  */
-export function createSigner(privateKey: `0x${string}`): PaymentSigner {
-  return new PaymentSigner(privateKey);
+export function createSigner(
+  privateKey: `0x${string}`,
+  chainId?: number
+): PaymentSigner {
+  return new PaymentSigner(privateKey, chainId);
 }
 
 /**
  * Create a payment signer from a wallet client
  */
 export function createSignerFromWallet(
-  walletClient: WalletClient
+  walletClient: WalletClient,
+  chainId?: number
 ): PaymentSigner {
-  return new PaymentSigner(walletClient);
+  return new PaymentSigner(walletClient, chainId);
 }

@@ -5,7 +5,6 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IOpenGrantRegistry } from "./interfaces/IOpenGrantRegistry.sol";
 
 /**
@@ -18,7 +17,6 @@ contract OpenGrantRegistry is
     UUPSUpgradeable,
     OwnableUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuard,
     IOpenGrantRegistry
 {
     // ============================================

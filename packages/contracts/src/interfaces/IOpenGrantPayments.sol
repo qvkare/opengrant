@@ -50,6 +50,13 @@ interface IOpenGrantPayments {
         address destination
     );
 
+    event PaymentsMarkedSettled(bytes32[] txHashes);
+
+    event StakingPoolFunded(
+        address indexed stakingPool,
+        uint256 amount
+    );
+
     event PlatformFeeUpdated(uint256 oldFee, uint256 newFee);
 
     event PlatformFeeReceiverUpdated(
@@ -112,6 +119,12 @@ interface IOpenGrantPayments {
      * @return Fee in basis points (e.g., 250 = 2.5%)
      */
     function getPlatformFeeBPS() external view returns (uint256);
+
+    /**
+     * @notice Mark individual payment records as settled after distribution
+     * @param txHashes Array of x402 transaction hashes to mark as settled
+     */
+    function markPaymentsSettled(bytes32[] calldata txHashes) external;
 
     /**
      * @notice Update platform fee (admin only)
