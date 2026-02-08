@@ -57,7 +57,7 @@ export async function createKey(options: KeysOptions): Promise<void> {
   const spinner = ora("Creating API key...").start();
 
   try {
-    const data = await apiRequest("/v1/consumers/me/api-keys", {
+    const data = await apiRequest("/v1/consumer/keys", {
       method: "POST",
       body: JSON.stringify({ name }),
     });
@@ -86,11 +86,11 @@ export async function listKeys(): Promise<void> {
   const spinner = ora("Fetching API keys...").start();
 
   try {
-    const data = await apiRequest("/v1/consumers/me/api-keys");
+    const keys = await apiRequest("/v1/consumer/keys");
 
     spinner.stop();
 
-    if (!data.keys || data.keys.length === 0) {
+    if (!Array.isArray(keys) || keys.length === 0) {
       console.log(chalk.yellow("No API keys found. Create one with `opengrant keys create`"));
       return;
     }
@@ -105,7 +105,7 @@ export async function listKeys(): Promise<void> {
     );
     console.log(chalk.dim("-".repeat(75)));
 
-    for (const key of data.keys) {
+    for (const key of keys) {
       const createdAt = new Date(key.createdAt).toLocaleDateString();
       const lastUsed = key.lastUsedAt
         ? new Date(key.lastUsedAt).toLocaleDateString()
@@ -114,7 +114,7 @@ export async function listKeys(): Promise<void> {
       console.log(
         key.id.slice(0, 8).padEnd(10) +
           key.name.slice(0, 18).padEnd(20) +
-          chalk.cyan(key.keyPrefix.padEnd(15)) +
+          chalk.cyan(key.prefix.padEnd(15)) +
           createdAt.padEnd(15) +
           lastUsed
       );
@@ -138,10 +138,10 @@ export async function revokeKey(keyId?: string): Promise<void> {
     const spinner = ora("Fetching API keys...").start();
 
     try {
-      const data = await apiRequest("/v1/consumers/me/api-keys");
+      const keys = await apiRequest("/v1/consumer/keys");
       spinner.stop();
 
-      if (!data.keys || data.keys.length === 0) {
+      if (!Array.isArray(keys) || keys.length === 0) {
         console.log(chalk.yellow("No API keys to revoke."));
         return;
       }
@@ -151,8 +151,8 @@ export async function revokeKey(keyId?: string): Promise<void> {
           type: "list",
           name: "selectedKey",
           message: "Select a key to revoke:",
-          choices: data.keys.map((key: any) => ({
-            name: `${key.name} (${key.keyPrefix}...)`,
+          choices: keys.map((key: any) => ({
+            name: `${key.name} (${key.prefix}...)`,
             value: key.id,
           })),
         },
@@ -183,7 +183,7 @@ export async function revokeKey(keyId?: string): Promise<void> {
   const spinner = ora("Revoking API key...").start();
 
   try {
-    await apiRequest(`/v1/consumers/me/api-keys/${keyId}`, {
+    await apiRequest(`/v1/consumer/keys/${keyId}`, {
       method: "DELETE",
     });
 

@@ -1,15 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useAccount, useDisconnect, useModal } from "@particle-network/connectkit";
 import { Button } from "@/components/ui/button";
 import { formatAddress } from "@/lib/utils";
 
-export function Header() {
+const isParticleConfigured = !!(
+  process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID &&
+  process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY &&
+  process.env.NEXT_PUBLIC_PARTICLE_APP_ID
+);
+
+function ConnectedHeader() {
+  // Only imported when Particle is configured (inside ConnectKitProvider)
+  const {
+    useAccount,
+    useDisconnect,
+    useModal,
+  } = require("@particle-network/connectkit");
+
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { setOpen } = useModal();
 
+  if (!isConnected) {
+    return (
+      <>
+        <Button variant="ghost" onClick={() => setOpen(true)}>
+          Sign In
+        </Button>
+        <Button onClick={() => setOpen(true)}>Get Started</Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link href="/dashboard">
+        <Button variant="ghost">Dashboard</Button>
+      </Link>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">
+          {address ? formatAddress(address) : "Connected"}
+        </span>
+        <Button variant="outline" size="sm" onClick={() => disconnect()}>
+          Sign Out
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function UnconfiguredHeader() {
+  return (
+    <span className="text-sm text-muted-foreground">
+      Wallet not configured
+    </span>
+  );
+}
+
+export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
@@ -42,28 +91,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          {isConnected ? (
-            <>
-              <Link href="/dashboard">
-                <Button variant="ghost">Dashboard</Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {address ? formatAddress(address) : "Connected"}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => disconnect()}>
-                  Sign Out
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" onClick={() => setOpen(true)}>
-                Sign In
-              </Button>
-              <Button onClick={() => setOpen(true)}>Get Started</Button>
-            </>
-          )}
+          {isParticleConfigured ? <ConnectedHeader /> : <UnconfiguredHeader />}
         </div>
       </div>
     </header>

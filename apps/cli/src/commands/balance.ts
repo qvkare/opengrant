@@ -14,7 +14,7 @@ export async function balance(): Promise<void> {
     const apiUrl = getApiUrl();
     const token = getToken();
 
-    const response = await fetch(`${apiUrl}/v1/consumers/me/balance`, {
+    const response = await fetch(`${apiUrl}/v1/consumer/balance`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

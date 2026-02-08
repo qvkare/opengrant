@@ -12,7 +12,7 @@ OpenGrant enables open-source projects to monetize their APIs through HTTP-nativ
 - **Chainlink CRE**: Decentralized workflow orchestration for payment verification and settlements
 - **Base L2**: ~$0.001 transaction costs, 2-second finality
 - **USDC Payments**: Stable, predictable pricing for API consumers
-- **Privy Auth**: Seamless wallet abstraction with email/social login support
+- **Particle Network ConnectKit**: Seamless wallet abstraction with email/social login support
 - **Publisher Vaults**: ERC-4626 + PaymentSplitter for revenue distribution
 
 ## Architecture
@@ -58,7 +58,7 @@ OpenGrant enables open-source projects to monetize their APIs through HTTP-nativ
 opengrant/
 ├── apps/
 │   ├── api/          # Express API server
-│   ├── web/          # Next.js 15 web application
+│   ├── web/          # Next.js 16 web application
 │   └── cli/          # Command-line interface
 ├── packages/
 │   ├── database/     # Drizzle ORM schema & migrations
@@ -178,7 +178,7 @@ opengrant keys create --name "my-app"
 1. Chainlink CRE aggregates usage records every 5 minutes
 2. Payments are batched and distributed to Publisher Vaults
 3. Publishers can withdraw from their vaults anytime
-4. Platform fee (2.5%) is automatically deducted
+4. Platform fee (5%) is automatically deducted
 
 ## Environment Variables
 
@@ -190,7 +190,7 @@ opengrant keys create --name "my-app"
 | `CHAIN_ID` | Blockchain chain ID (8453 for Base) |
 | `RPC_URL` | Ethereum RPC URL |
 | `PLATFORM_WALLET` | Platform fee recipient address |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy application ID |
+| `NEXT_PUBLIC_PARTICLE_PROJECT_ID` | Particle Network project ID |
 
 See `.env.example` for all available options.
 

@@ -365,12 +365,73 @@ router.get("/earnings", async (req: AuthRequest, res: Response) => {
     const totalWithdrawn = BigInt(withdrawn[0]?.total || "0");
     const availableBalance = netEarnings - totalWithdrawn;
 
+    // Get pending (unsettled) usage revenue
+    const publisherApis = await db.query.apis.findMany({
+      where: eq(apis.publisherId, publisher.id),
+      columns: { id: true },
+    });
+    const apiIds = publisherApis.map((a) => a.id);
+    let pendingBalance = "0";
+    if (apiIds.length > 0) {
+      const pending = await db
+        .select({
+          total: sql<string>`COALESCE(SUM(${usageRecords.priceCharged}), 0)::text`,
+        })
+        .from(usageRecords)
+        .where(
+          and(
+            inArray(usageRecords.apiId, apiIds),
+            eq(usageRecords.paymentStatus, "verified")
+          )
+        );
+      pendingBalance = pending[0]?.total || "0";
+    }
+
+    // Get recent payments (last 10)
+    const recentPaymentRecords = await db.query.payments.findMany({
+      where: eq(payments.publisherId, publisher.id),
+      orderBy: desc(payments.settledAt),
+      limit: 10,
+    });
+    const recentPayments = await Promise.all(
+      recentPaymentRecords.map(async (p) => {
+        const api = await db.query.apis.findFirst({
+          where: eq(apis.id, p.apiId),
+          columns: { name: true },
+        });
+        return {
+          api: api?.name || "Unknown",
+          amount: p.grossAmount,
+          from: p.apiId,
+          time: p.settledAt?.toISOString() || p.periodEnd?.toISOString() || "",
+        };
+      })
+    );
+
+    // Get recent withdrawals (last 10)
+    const recentWithdrawals = await db.query.withdrawals.findMany({
+      where: eq(withdrawals.publisherId, publisher.id),
+      orderBy: desc(withdrawals.createdAt),
+      limit: 10,
+    });
+
     res.json({
       grossEarnings: grossEarnings.toString(),
       platformFees: platformFees.toString(),
       netEarnings: netEarnings.toString(),
       totalWithdrawn: totalWithdrawn.toString(),
       availableBalance: availableBalance.toString(),
+      pendingBalance,
+      lifetimeEarnings: grossEarnings.toString(),
+      platformFeesPaid: platformFees.toString(),
+      recentPayments,
+      withdrawals: recentWithdrawals.map((w) => ({
+        id: w.id,
+        amount: w.amount,
+        txHash: w.txHash || "",
+        status: w.status,
+        timestamp: w.createdAt.toISOString(),
+      })),
     });
   } catch (error) {
     console.error("Get earnings error:", error);
@@ -624,6 +685,43 @@ router.put("/apis/:apiId/endpoints/:endpointId", async (req: AuthRequest, res: R
   } catch (error) {
     console.error("Update endpoint error:", error);
     res.status(500).json({ error: "Failed to update endpoint" });
+  }
+});
+
+/**
+ * Trigger settlement for publisher's APIs
+ * POST /v1/publisher/settle
+ */
+router.post("/settle", async (req: AuthRequest, res: Response) => {
+  try {
+    const publisher = await db.query.publishers.findFirst({
+      where: eq(publishers.walletAddress, req.user!.wallet),
+    });
+
+    if (!publisher) {
+      return res.status(404).json({ error: "Publisher not found" });
+    }
+
+    const { settlePublisherPayments } = await import(
+      "../../services/settlement.service.js"
+    );
+
+    const results = await settlePublisherPayments(publisher.id, {
+      executeOnChain: false,
+    });
+
+    const successful = results.filter((r: any) => r.success);
+    const failed = results.filter((r: any) => !r.success);
+
+    res.json({
+      processed: results.length,
+      successful: successful.length,
+      failed: failed.length,
+      results,
+    });
+  } catch (error) {
+    console.error("Settlement error:", error);
+    res.status(500).json({ error: "Failed to run settlement" });
   }
 });
 

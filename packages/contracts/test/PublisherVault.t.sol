@@ -89,10 +89,10 @@ contract PublisherVaultTest is Test {
         vm.prank(paymentsContract);
         vault.receivePayment(paymentAmount);
 
-        // Platform fee: 1000000 * 250 / 10000 = 25000 (2.5%)
-        // Net to vault: 1000000 - 25000 = 975000
-        assertEq(usdc.balanceOf(platformFeeReceiver), 25000);
-        assertEq(usdc.balanceOf(address(vault)), 975000);
+        // Platform fee is deducted in OpenGrantPayments, not in vault
+        // Vault receives the full net amount
+        assertEq(usdc.balanceOf(platformFeeReceiver), 0);
+        assertEq(usdc.balanceOf(address(vault)), 1000000);
     }
 
     function test_RevertReceivePayment_NotPaymentsContract() public {
@@ -114,11 +114,11 @@ contract PublisherVaultTest is Test {
     function test_Releasable() public {
         _receivePayment(1000000);
 
-        // After 2.5% platform fee, 975000 in vault
-        // payee1 (70%): 975000 * 7000 / 10000 = 682500
-        // payee2 (30%): 975000 * 3000 / 10000 = 292500
-        assertEq(vault.releasable(payee1), 682500);
-        assertEq(vault.releasable(payee2), 292500);
+        // Vault receives full amount (fee already deducted upstream)
+        // payee1 (70%): 1000000 * 7000 / 10000 = 700000
+        // payee2 (30%): 1000000 * 3000 / 10000 = 300000
+        assertEq(vault.releasable(payee1), 700000);
+        assertEq(vault.releasable(payee2), 300000);
     }
 
     function test_Release() public {
@@ -297,38 +297,37 @@ contract PublisherVaultTest is Test {
     function test_TotalAssets() public {
         _receivePayment(1000000);
 
-        // After 2.5% platform fee: 975000
-        assertEq(vault.totalAssets(), 975000);
+        // Vault receives full amount (fee deducted in OpenGrantPayments)
+        assertEq(vault.totalAssets(), 1000000);
     }
 
     // ============================================
     // PLATFORM FEE TESTS
     // ============================================
 
-    function test_PlatformFeeCalculation() public {
-        // 100 USDC
+    function test_NoFeeAtVaultLevel() public {
+        // 100 USDC - vault should not deduct any fee
         uint256 payment = 100000000;
         usdc.mint(paymentsContract, payment);
 
         vm.prank(paymentsContract);
         vault.receivePayment(payment);
 
-        // 2.5% of 100,000,000 = 2,500,000
-        assertEq(usdc.balanceOf(platformFeeReceiver), 2500000);
-        assertEq(usdc.balanceOf(address(vault)), 97500000);
+        // Platform fee is handled by OpenGrantPayments, not vault
+        assertEq(usdc.balanceOf(platformFeeReceiver), 0);
+        assertEq(usdc.balanceOf(address(vault)), 100000000);
     }
 
-    function test_PlatformFeeSmallAmount() public {
-        // 1 USDC
+    function test_NoFeeSmallAmount() public {
+        // 1 USDC - vault should not deduct any fee
         uint256 payment = 1000000;
         usdc.mint(paymentsContract, payment);
 
         vm.prank(paymentsContract);
         vault.receivePayment(payment);
 
-        // 2.5% of 1,000,000 = 25,000
-        assertEq(usdc.balanceOf(platformFeeReceiver), 25000);
-        assertEq(usdc.balanceOf(address(vault)), 975000);
+        assertEq(usdc.balanceOf(platformFeeReceiver), 0);
+        assertEq(usdc.balanceOf(address(vault)), 1000000);
     }
 
     // ============================================
@@ -367,13 +366,13 @@ contract PublisherVaultTest is Test {
         vm.prank(paymentsContract);
         unequalVault.receivePayment(10000000);
 
-        // Net after 2.5% fee: 9,750,000
-        // payee0 (50%): 4,875,000
-        // payee1 (30%): 2,925,000
-        // payee2 (20%): 1,950,000
-        assertEq(unequalVault.releasable(address(0x20)), 4875000);
-        assertEq(unequalVault.releasable(address(0x21)), 2925000);
-        assertEq(unequalVault.releasable(address(0x22)), 1950000);
+        // Vault receives full amount (fee deducted upstream)
+        // payee0 (50%): 10,000,000 * 5000 / 10000 = 5,000,000
+        // payee1 (30%): 10,000,000 * 3000 / 10000 = 3,000,000
+        // payee2 (20%): 10,000,000 * 2000 / 10000 = 2,000,000
+        assertEq(unequalVault.releasable(address(0x20)), 5000000);
+        assertEq(unequalVault.releasable(address(0x21)), 3000000);
+        assertEq(unequalVault.releasable(address(0x22)), 2000000);
     }
 
     // ============================================

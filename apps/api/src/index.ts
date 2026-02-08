@@ -10,6 +10,7 @@ import proxyRoutes from "./routes/v1/proxy.routes.js";
 import authRoutes from "./routes/v1/auth.routes.js";
 import consumerRoutes from "./routes/v1/consumer.routes.js";
 import publisherRoutes from "./routes/v1/publisher.routes.js";
+import internalRoutes from "./routes/v1/internal.routes.js";
 
 // Import database
 import { testConnection, closeDatabase } from "./db/index.js";
@@ -157,6 +158,9 @@ app.use("/v1/publisher", publisherRoutes);
 
 // Proxy routes (x402 payment gateway)
 app.use("/proxy", proxyRoutes);
+
+// Internal routes (CRE workflows)
+app.use("/internal", internalRoutes);
 
 // ============================================
 // ERROR HANDLERS
