@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build database package
+        run: pnpm --filter @opengrant/database build
+
       - name: Run typecheck
         run: pnpm --filter @opengrant/sdk typecheck && pnpm --filter @opengrant/api typecheck
 
@@ -63,6 +66,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build database package
+        run: pnpm --filter @opengrant/database build
+
       - name: Run SDK tests
         run: pnpm --filter @opengrant/sdk test
 
@@ -86,6 +92,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build database package
+        run: pnpm --filter @opengrant/database build
 
       - name: Run API tests
         run: pnpm --filter @opengrant/api test
