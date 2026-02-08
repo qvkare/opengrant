@@ -313,6 +313,7 @@ contract OpenGrantPayments is
         address to
     ) external onlyOwner {
         require(to != address(0), "OpenGrantPayments: invalid recipient");
+        require(token != address(usdc), "OpenGrantPayments: cannot withdraw USDC");
         IERC20(token).safeTransfer(to, amount);
     }
 }

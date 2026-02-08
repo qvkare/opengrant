@@ -144,6 +144,7 @@ contract OpenGrantFactory is Ownable {
      * @param _registry New registry address
      */
     function setRegistry(address _registry) external onlyOwner {
+        require(_registry != address(0), "OpenGrantFactory: invalid registry");
         address old = registry;
         registry = _registry;
         emit RegistryUpdated(old, _registry);
@@ -154,6 +155,7 @@ contract OpenGrantFactory is Ownable {
      * @param _paymentsContract New payments contract address
      */
     function setPaymentsContract(address _paymentsContract) external onlyOwner {
+        require(_paymentsContract != address(0), "OpenGrantFactory: invalid payments contract");
         address old = paymentsContract;
         paymentsContract = _paymentsContract;
         emit PaymentsContractUpdated(old, _paymentsContract);

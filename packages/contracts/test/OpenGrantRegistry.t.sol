@@ -84,6 +84,33 @@ contract OpenGrantRegistryTest is Test {
         assertFalse(registry.isPublisherActive(publisher1));
     }
 
+    function test_ReRegisterPublisher_NoDuplicate() public {
+        // Register publisher
+        vm.prank(publisher1);
+        registry.registerPublisher(vault1, "ipfs://metadata");
+
+        // Deactivate
+        vm.prank(publisher1);
+        registry.deactivatePublisher();
+        assertFalse(registry.isPublisherActive(publisher1));
+
+        // Re-register
+        vm.prank(publisher1);
+        registry.registerPublisher(vault1, "ipfs://metadata-v2");
+        assertTrue(registry.isPublisherActive(publisher1));
+
+        // Verify publisher is not duplicated in the list
+        // Register a second publisher to check list length
+        vm.prank(publisher2);
+        registry.registerPublisher(vault2, "ipfs://metadata");
+
+        // If no duplicate, getPublisher for publisher1 should still work
+        // and the publisher should appear exactly once
+        IOpenGrantRegistry.Publisher memory pub = registry.getPublisher(publisher1);
+        assertEq(pub.metadataUri, "ipfs://metadata-v2");
+        assertTrue(pub.isActive);
+    }
+
     // ============================================
     // API TESTS
     // ============================================

@@ -347,22 +347,33 @@ contract OpenGrantPaymentsTest is Test {
         payments.recordPayment(apiId1, consumer1, 1000000, keccak256("tx1"));
     }
 
-    function test_EmergencyWithdraw() public {
-        address recipient = address(0x300);
-        uint256 amount = 5000000;
+    function test_EmergencyWithdraw_NonUSDC() public {
+        // Deploy a non-USDC token
+        MockUSDC otherToken = new MockUSDC();
+        otherToken.mint(address(payments), 5000000);
 
-        uint256 balanceBefore = usdc.balanceOf(recipient);
+        address recipient = address(0x300);
+        uint256 balanceBefore = otherToken.balanceOf(recipient);
 
         vm.prank(owner);
-        payments.emergencyWithdraw(address(usdc), amount, recipient);
+        payments.emergencyWithdraw(address(otherToken), 5000000, recipient);
 
-        assertEq(usdc.balanceOf(recipient), balanceBefore + amount);
+        assertEq(otherToken.balanceOf(recipient), balanceBefore + 5000000);
+    }
+
+    function test_RevertEmergencyWithdraw_USDC() public {
+        vm.prank(owner);
+        vm.expectRevert("OpenGrantPayments: cannot withdraw USDC");
+        payments.emergencyWithdraw(address(usdc), 1000000, address(0x300));
     }
 
     function test_RevertEmergencyWithdraw_InvalidRecipient() public {
+        MockUSDC otherToken = new MockUSDC();
+        otherToken.mint(address(payments), 5000000);
+
         vm.prank(owner);
         vm.expectRevert("OpenGrantPayments: invalid recipient");
-        payments.emergencyWithdraw(address(usdc), 1000000, address(0));
+        payments.emergencyWithdraw(address(otherToken), 1000000, address(0));
     }
 
     // ============================================

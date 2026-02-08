@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -30,8 +31,6 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
 
     // Platform fee configuration
     address public platformFeeReceiver;
-    uint256 public constant PLATFORM_FEE_BPS = 250; // 2.5%
-    uint256 public constant BPS_DENOMINATOR = 10_000;
 
     // Payments contract that can call receivePayment
     address public paymentsContract;
@@ -114,35 +113,23 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     function releasable(
         address account
     ) public view override returns (uint256) {
-        uint256 totalReceived = IERC20(asset()).balanceOf(address(this)) +
-            _totalReleased;
-        return _pendingPayment(account, totalReceived, _released[account]);
+        return _releasable(account);
     }
 
     /**
      * @inheritdoc IPublisherVault
      */
     function release(address account) public override nonReentrant {
-        require(_shares[account] > 0, "PublisherVault: account has no shares");
-
-        uint256 payment = releasable(account);
-        require(payment > 0, "PublisherVault: no payment due");
-
-        _released[account] += payment;
-        _totalReleased += payment;
-
-        IERC20(asset()).safeTransfer(account, payment);
-
-        emit PaymentReleased(account, payment);
+        _release(account);
     }
 
     /**
      * @inheritdoc IPublisherVault
      */
-    function releaseAll() external override {
+    function releaseAll() external override nonReentrant {
         for (uint256 i = 0; i < _payees.length; i++) {
-            if (releasable(_payees[i]) > 0) {
-                release(_payees[i]);
+            if (_releasable(_payees[i]) > 0) {
+                _release(_payees[i]);
             }
         }
     }
@@ -153,7 +140,7 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     function updatePayees(
         address[] calldata payees_,
         uint256[] calldata shares_
-    ) external override onlyOwner {
+    ) external override onlyOwner nonReentrant {
         require(
             payees_.length == shares_.length,
             "PublisherVault: payees and shares length mismatch"
@@ -162,17 +149,19 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
 
         // Release all pending payments first
         for (uint256 i = 0; i < _payees.length; i++) {
-            if (releasable(_payees[i]) > 0) {
-                release(_payees[i]);
+            if (_releasable(_payees[i]) > 0) {
+                _release(_payees[i]);
             }
         }
 
-        // Clear existing payees
+        // Clear existing payees and their released accounting
         for (uint256 i = 0; i < _payees.length; i++) {
+            delete _released[_payees[i]];
             delete _shares[_payees[i]];
         }
         delete _payees;
         _totalShares = 0;
+        _totalReleased = 0;
 
         // Add new payees
         for (uint256 i = 0; i < payees_.length; i++) {
@@ -225,6 +214,26 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     // INTERNAL FUNCTIONS
     // ============================================
 
+    function _releasable(address account) internal view returns (uint256) {
+        uint256 totalReceived = IERC20(asset()).balanceOf(address(this)) +
+            _totalReleased;
+        return _pendingPayment(account, totalReceived, _released[account]);
+    }
+
+    function _release(address account) internal {
+        require(_shares[account] > 0, "PublisherVault: account has no shares");
+
+        uint256 payment = _releasable(account);
+        require(payment > 0, "PublisherVault: no payment due");
+
+        _released[account] += payment;
+        _totalReleased += payment;
+
+        IERC20(asset()).safeTransfer(account, payment);
+
+        emit PaymentReleased(account, payment);
+    }
+
     function _addPayee(address account, uint256 shares_) private {
         require(account != address(0), "PublisherVault: zero address payee");
         require(shares_ > 0, "PublisherVault: shares are zero");
@@ -250,6 +259,8 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     // ADMIN FUNCTIONS
     // ============================================
 
+    event PaymentsContractUpdated(address indexed oldContract, address indexed newContract);
+
     /**
      * @notice Update the payments contract address
      * @param _paymentsContract New payments contract address
@@ -258,6 +269,33 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
         address _paymentsContract
     ) external onlyOwner {
         require(_paymentsContract != address(0), "PublisherVault: zero address");
+        address old = paymentsContract;
         paymentsContract = _paymentsContract;
+        emit PaymentsContractUpdated(old, _paymentsContract);
     }
+
+    // ============================================
+    // ERC4626 OVERRIDES - Deposits/withdrawals disabled
+    // ============================================
+
+    function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert("PublisherVault: deposits disabled");
+    }
+
+    function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert("PublisherVault: deposits disabled");
+    }
+
+    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert("PublisherVault: withdrawals disabled");
+    }
+
+    function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert("PublisherVault: withdrawals disabled");
+    }
+
+    function maxDeposit(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function maxMint(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function maxWithdraw(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function maxRedeem(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
 }

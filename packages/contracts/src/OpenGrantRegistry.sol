@@ -100,6 +100,8 @@ contract OpenGrantRegistry is
         );
         require(vault != address(0), "OpenGrantRegistry: invalid vault address");
 
+        bool isNewPublisher = _publishers[msg.sender].registeredAt == 0;
+
         _publishers[msg.sender] = Publisher({
             owner: msg.sender,
             vault: vault,
@@ -108,7 +110,9 @@ contract OpenGrantRegistry is
             registeredAt: block.timestamp
         });
 
-        _publisherList.push(msg.sender);
+        if (isNewPublisher) {
+            _publisherList.push(msg.sender);
+        }
 
         emit PublisherRegistered(msg.sender, vault, metadataUri);
     }

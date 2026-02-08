@@ -268,6 +268,121 @@ contract PublisherVaultTest is Test {
     }
 
     // ============================================
+    // ACCOUNTING RESET TESTS (Security Audit Round 3)
+    // ============================================
+
+    function test_UpdatePayees_AccountingReset() public {
+        // Receive 1000 USDC
+        _receivePayment(1000000);
+
+        // Update payees: replace payee1+payee2 with payee3 only
+        address[] memory newPayees = new address[](1);
+        newPayees[0] = payee3;
+        uint256[] memory newShares = new uint256[](1);
+        newShares[0] = 10000;
+
+        vm.prank(owner);
+        vault.updatePayees(newPayees, newShares);
+
+        // After accounting reset, totalReleased should be 0
+        assertEq(vault.totalReleased(), 0);
+
+        // Receive another 500 USDC
+        _receivePayment(500000);
+
+        // payee3 should only be able to claim the 500 USDC (new funds)
+        // not the full vault balance (old payees already got their share)
+        assertEq(vault.releasable(payee3), 500000);
+    }
+
+    function test_UpdatePayees_ReAddedPayee_CleanSlate() public {
+        // Receive 1000 USDC and release to payee1
+        _receivePayment(1000000);
+        vault.release(payee1);
+        uint256 payee1FirstRelease = usdc.balanceOf(payee1);
+        assertEq(payee1FirstRelease, 700000); // 70% of 1M
+
+        // Update payees: keep payee1 as sole payee
+        address[] memory newPayees = new address[](1);
+        newPayees[0] = payee1;
+        uint256[] memory newShares = new uint256[](1);
+        newShares[0] = 10000;
+
+        vm.prank(owner);
+        vault.updatePayees(newPayees, newShares);
+
+        // payee1's _released should be reset to 0
+        assertEq(vault.released(payee1), 0);
+
+        // Receive 200 USDC
+        _receivePayment(200000);
+
+        // payee1 should be able to claim exactly 200 USDC (the new funds)
+        assertEq(vault.releasable(payee1), 200000);
+    }
+
+    function test_UpdatePayees_AttackBlocked() public {
+        // Scenario: payee1 (70%) and payee2 (30%) receive 1M USDC
+        _receivePayment(1000000);
+
+        // payee1 releases their 700k
+        vault.release(payee1);
+        assertEq(usdc.balanceOf(payee1), 700000);
+
+        // Owner adds payee3 as replacement for payee1
+        // Without the fix, payee3 could steal payee2's unreleased 300k
+        address[] memory newPayees = new address[](2);
+        newPayees[0] = payee2;
+        newPayees[1] = payee3;
+        uint256[] memory newShares = new uint256[](2);
+        newShares[0] = 5000; // 50%
+        newShares[1] = 5000; // 50%
+
+        vm.prank(owner);
+        vault.updatePayees(newPayees, newShares);
+
+        // After updatePayees, payee2 got their pending 300k released
+        assertEq(usdc.balanceOf(payee2), 300000);
+
+        // Vault balance should be 0 (all funds distributed)
+        assertEq(usdc.balanceOf(address(vault)), 0);
+
+        // New payees should have nothing releasable (no new funds)
+        assertEq(vault.releasable(payee2), 0);
+        assertEq(vault.releasable(payee3), 0);
+
+        // Receive new payment - should split correctly
+        _receivePayment(100000);
+        assertEq(vault.releasable(payee2), 50000); // 50%
+        assertEq(vault.releasable(payee3), 50000); // 50%
+    }
+
+    function test_UpdatePayees_DustDistribution() public {
+        // Use an amount that doesn't divide evenly: 1000003
+        // With 70/30 split: payee1 gets 700002 (1000003*7000/10000), payee2 gets 300000 (1000003*3000/10000)
+        // Dust of 1 remains in vault
+        _receivePayment(1000003);
+
+        // Update payees to single payee to capture dust
+        address[] memory newPayees = new address[](1);
+        newPayees[0] = payee3;
+        uint256[] memory newShares = new uint256[](1);
+        newShares[0] = 10000;
+
+        vm.prank(owner);
+        vault.updatePayees(newPayees, newShares);
+
+        // Old payees got their shares (with rounding)
+        assertEq(usdc.balanceOf(payee1), 700002);
+        assertEq(usdc.balanceOf(payee2), 300000);
+
+        // Dust (1 unit) remains in vault, claimable by payee3
+        uint256 dust = usdc.balanceOf(address(vault));
+        assertEq(dust, 1);
+        assertEq(vault.releasable(payee3), 1);
+    }
+
+    // ============================================
     // ADMIN TESTS
     // ============================================
 
@@ -373,6 +488,97 @@ contract PublisherVaultTest is Test {
         assertEq(unequalVault.releasable(address(0x20)), 5000000);
         assertEq(unequalVault.releasable(address(0x21)), 3000000);
         assertEq(unequalVault.releasable(address(0x22)), 2000000);
+    }
+
+    // ============================================
+    // ERC4626 SECURITY TESTS - Deposits/Withdrawals Disabled
+    // ============================================
+
+    function test_RevertDeposit_Disabled() public {
+        usdc.mint(address(this), 1000000);
+        usdc.approve(address(vault), 1000000);
+
+        vm.expectRevert("PublisherVault: deposits disabled");
+        vault.deposit(1000000, address(this));
+    }
+
+    function test_RevertMint_Disabled() public {
+        usdc.mint(address(this), 1000000);
+        usdc.approve(address(vault), 1000000);
+
+        vm.expectRevert("PublisherVault: deposits disabled");
+        vault.mint(1000000, address(this));
+    }
+
+    function test_RevertWithdraw_Disabled() public {
+        vm.expectRevert("PublisherVault: withdrawals disabled");
+        vault.withdraw(1000000, address(this), address(this));
+    }
+
+    function test_RevertRedeem_Disabled() public {
+        vm.expectRevert("PublisherVault: withdrawals disabled");
+        vault.redeem(1000000, address(this), address(this));
+    }
+
+    function test_MaxDeposit_ReturnsZero() public view {
+        assertEq(vault.maxDeposit(address(this)), 0);
+    }
+
+    function test_MaxMint_ReturnsZero() public view {
+        assertEq(vault.maxMint(address(this)), 0);
+    }
+
+    function test_MaxWithdraw_ReturnsZero() public view {
+        assertEq(vault.maxWithdraw(address(this)), 0);
+    }
+
+    function test_MaxRedeem_ReturnsZero() public view {
+        assertEq(vault.maxRedeem(address(this)), 0);
+    }
+
+    function test_DepositAttackBlocked() public {
+        address attacker = address(0xBEEF);
+
+        // Step 1: Attacker tries to deposit USDC to get shares
+        usdc.mint(attacker, 100e6);
+        vm.startPrank(attacker);
+        usdc.approve(address(vault), 100e6);
+
+        // Deposit is blocked - attack fails at step 1
+        vm.expectRevert("PublisherVault: deposits disabled");
+        vault.deposit(100e6, attacker);
+        vm.stopPrank();
+
+        // Step 2: Vault receives legitimate payment
+        _receivePayment(1000e6);
+
+        // Step 3: Attacker tries to redeem (even though they have no shares)
+        vm.prank(attacker);
+        vm.expectRevert("PublisherVault: withdrawals disabled");
+        vault.redeem(1, attacker, attacker);
+
+        // Verify vault funds are safe
+        assertEq(usdc.balanceOf(address(vault)), 1000e6);
+        assertEq(usdc.balanceOf(attacker), 100e6); // Attacker still has their own USDC
+    }
+
+    // ============================================
+    // SETPAYMENTSCONTRACT EVENT & VALIDATION TESTS
+    // ============================================
+
+    function test_SetPaymentsContract_EmitsEvent() public {
+        address newPayments = address(0x999);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit PublisherVault.PaymentsContractUpdated(paymentsContract, newPayments);
+        vault.setPaymentsContract(newPayments);
+    }
+
+    function test_RevertSetPaymentsContract_ZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("PublisherVault: zero address");
+        vault.setPaymentsContract(address(0));
     }
 
     // ============================================
