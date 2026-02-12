@@ -372,7 +372,7 @@ contract OpenGrantEscrowTest is Test {
         vm.warp(block.timestamp + 365 days);
 
         vm.prank(donor1);
-        vm.expectRevert("No donation found");
+        vm.expectRevert("Repo already claimed");
         escrow.refund(repoHash1);
     }
 
@@ -470,7 +470,7 @@ contract OpenGrantEscrowTest is Test {
         vm.warp(block.timestamp + 365 days);
 
         vm.prank(donor1);
-        vm.expectRevert("No donation found");
+        vm.expectRevert("Source repo already claimed");
         escrow.redistribute(repoHash1, repoHash2);
     }
 

@@ -39,14 +39,14 @@ contract DeployTokenScript is Script {
     address constant USDC_ETHEREUM       = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant USDC_BASE           = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant USDC_ARBITRUM       = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    address constant USDC_LINEA          = 0xfece4462d57bd51a6a552365a011b95f0e16d9b7;
+    address constant USDC_LINEA          = 0xFEce4462D57bD51A6A552365A011b95f0E16d9B7;
     address constant USDC_POLYGON        = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
 
     // Testnets
     address constant USDC_BASE_SEPOLIA   = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
     address constant USDC_ARB_SEPOLIA    = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
-    address constant USDC_LINEA_SEPOLIA  = 0xB33a204B04C0BBe78eB4252c6264c5C94e2Fb0dB;
-    address constant USDC_POLYGON_AMOY   = 0x41E94Eb71Ef8C9770bAd3BbD3E492065b2B8cE75;
+    address constant USDC_LINEA_SEPOLIA  = 0xb33a204b04c0BBE78EB4252C6264C5C94e2FB0dB;
+    address constant USDC_POLYGON_AMOY   = 0x41E94EB71EF8C9770BAD3bBd3e492065b2B8ce75;
 
     /**
      * @notice Resolve USDC address and network name from chain ID
@@ -64,7 +64,7 @@ contract DeployTokenScript is Script {
         if (chainId == 59141)  return (USDC_LINEA_SEPOLIA, "Linea Sepolia");
         if (chainId == 80002)  return (USDC_POLYGON_AMOY,  "Polygon Amoy");
 
-        revert("Unsupported chain — add USDC address for this chain ID");
+        revert("Unsupported chain - add USDC address for this chain ID");
     }
 
     function run() external {
