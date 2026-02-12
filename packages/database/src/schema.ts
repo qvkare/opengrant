@@ -62,6 +62,31 @@ export const httpMethodEnum = pgEnum("http_method", [
   "DELETE",
 ]);
 
+export const claimStatusEnum = pgEnum("claim_status", [
+  "unclaimed",
+  "pending",
+  "claimed",
+  "opted_out",
+]);
+
+export const donationStatusEnum = pgEnum("donation_status", [
+  "confirmed",
+  "refunded",
+  "redistributed",
+]);
+
+export const packageManagerEnum = pgEnum("package_manager", [
+  "npm",
+  "cargo",
+  "go",
+]);
+
+export const donationSourceEnum = pgEnum("donation_source", [
+  "direct",
+  "stack",
+  "explore",
+]);
+
 // ============================================
 // PUBLISHERS
 // ============================================
@@ -408,6 +433,139 @@ export const withdrawals = pgTable(
 );
 
 // ============================================
+// GITHUB REPOS (Fund Feature)
+// ============================================
+
+export const githubRepos = pgTable(
+  "github_repos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    githubId: bigint("github_id", { mode: "number" }).notNull().unique(),
+    owner: varchar("owner", { length: 255 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    fullName: varchar("full_name", { length: 512 }).notNull(),
+    repoHash: varchar("repo_hash", { length: 66 }).notNull().unique(),
+
+    // Metadata
+    description: text("description"),
+    language: varchar("language", { length: 50 }),
+    stars: integer("stars").default(0).notNull(),
+    forks: integer("forks").default(0).notNull(),
+    avatarUrl: text("avatar_url"),
+    homepageUrl: text("homepage_url"),
+    topics: text("topics").array(),
+    license: varchar("license", { length: 100 }),
+
+    // Claim status
+    claimStatus: claimStatusEnum("claim_status").default("unclaimed").notNull(),
+    claimedBy: varchar("claimed_by", { length: 42 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    claimTxHash: varchar("claim_tx_hash", { length: 66 }),
+    optedOut: boolean("opted_out").default(false).notNull(),
+    optedOutAt: timestamp("opted_out_at", { withTimezone: true }),
+
+    // Funding stats (denormalized)
+    totalFunded: numeric("total_funded", { precision: 20, scale: 6 }).default("0").notNull(),
+    totalClaimed: numeric("total_claimed", { precision: 20, scale: 6 }).default("0").notNull(),
+    donorCount: integer("donor_count").default(0).notNull(),
+
+    // FUNDING.yml wallet
+    fundingYmlWallet: varchar("funding_yml_wallet", { length: 42 }),
+
+    // Sync
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_github_repos_github_id").on(table.githubId),
+    index("idx_github_repos_repo_hash").on(table.repoHash),
+    index("idx_github_repos_owner_name").on(table.owner, table.name),
+    index("idx_github_repos_language").on(table.language),
+    index("idx_github_repos_stars").on(table.stars),
+    index("idx_github_repos_total_funded").on(table.totalFunded),
+    index("idx_github_repos_claim_status").on(table.claimStatus),
+  ]
+);
+
+// ============================================
+// FUND DONATIONS
+// ============================================
+
+export const fundDonations = pgTable(
+  "fund_donations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    repoId: uuid("repo_id")
+      .notNull()
+      .references(() => githubRepos.id, { onDelete: "cascade" }),
+    donorWallet: varchar("donor_wallet", { length: 42 }).notNull(),
+
+    // Amount
+    amount: numeric("amount", { precision: 20, scale: 6 }).notNull(),
+    txHash: varchar("tx_hash", { length: 66 }).notNull().unique(),
+    chainId: integer("chain_id").notNull(),
+
+    // Options
+    redistributeOnTimeout: boolean("redistribute_on_timeout").default(false).notNull(),
+    status: donationStatusEnum("status").default("confirmed").notNull(),
+    source: donationSourceEnum("source").default("direct").notNull(),
+
+    // Refund tracking
+    refundEligibleAt: timestamp("refund_eligible_at", { withTimezone: true }),
+    refundTxHash: varchar("refund_tx_hash", { length: 66 }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+
+    // Stack fund reference
+    analysisId: uuid("analysis_id"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_fund_donations_repo").on(table.repoId),
+    index("idx_fund_donations_donor").on(table.donorWallet),
+    index("idx_fund_donations_tx_hash").on(table.txHash),
+    index("idx_fund_donations_status").on(table.status),
+    index("idx_fund_donations_refund_eligible").on(table.refundEligibleAt),
+  ]
+);
+
+// ============================================
+// DEPENDENCY ANALYSES
+// ============================================
+
+export const dependencyAnalyses = pgTable(
+  "dependency_analyses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestedBy: varchar("requested_by", { length: 42 }).notNull(),
+
+    // Package manager
+    packageManager: packageManagerEnum("package_manager").notNull(),
+    inputHash: varchar("input_hash", { length: 64 }).notNull(),
+
+    // Analysis results
+    dependencies: jsonb("dependencies").notNull(),
+    scores: jsonb("scores").notNull(),
+    totalDependencies: integer("total_dependencies").notNull(),
+    directDependencies: integer("direct_dependencies").notNull(),
+
+    // Execution
+    executedBudget: numeric("executed_budget", { precision: 20, scale: 6 }),
+    executedTxHash: varchar("executed_tx_hash", { length: 66 }),
+    executedAt: timestamp("executed_at", { withTimezone: true }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("idx_dep_analyses_input_hash").on(table.inputHash),
+    index("idx_dep_analyses_requested_by").on(table.requestedBy),
+    index("idx_dep_analyses_expires_at").on(table.expiresAt),
+  ]
+);
+
+// ============================================
 // RELATIONS
 // ============================================
 
@@ -462,6 +620,17 @@ export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
   }),
 }));
 
+export const githubReposRelations = relations(githubRepos, ({ many }) => ({
+  donations: many(fundDonations),
+}));
+
+export const fundDonationsRelations = relations(fundDonations, ({ one }) => ({
+  repo: one(githubRepos, {
+    fields: [fundDonations.repoId],
+    references: [githubRepos.id],
+  }),
+}));
+
 // ============================================
 // TYPES
 // ============================================
@@ -489,3 +658,12 @@ export type NewPayment = typeof payments.$inferInsert;
 
 export type Withdrawal = typeof withdrawals.$inferSelect;
 export type NewWithdrawal = typeof withdrawals.$inferInsert;
+
+export type GithubRepo = typeof githubRepos.$inferSelect;
+export type NewGithubRepo = typeof githubRepos.$inferInsert;
+
+export type FundDonation = typeof fundDonations.$inferSelect;
+export type NewFundDonation = typeof fundDonations.$inferInsert;
+
+export type DependencyAnalysis = typeof dependencyAnalyses.$inferSelect;
+export type NewDependencyAnalysis = typeof dependencyAnalyses.$inferInsert;

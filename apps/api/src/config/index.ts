@@ -63,6 +63,15 @@ const envSchema = z.object({
 
   // Web
   WEB_URL: z.string().default("http://localhost:3000"),
+
+  // GitHub (Fund feature)
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+
+  // Escrow (Fund feature)
+  OPENGRANT_ESCROW_ADDRESS: z.string().optional(),
+  ESCROW_SIGNER_PRIVATE_KEY: z.string().optional(),
 });
 
 function validateEnv() {
@@ -134,6 +143,15 @@ export const config = {
     registry: env.OPENGRANT_REGISTRY_ADDRESS,
     payments: env.OPENGRANT_PAYMENTS_ADDRESS,
     usdc: env.USDC_ADDRESS || CHAIN_USDC_ADDRESSES[chainId],
+    escrow: env.OPENGRANT_ESCROW_ADDRESS,
+  },
+  github: {
+    token: env.GITHUB_TOKEN,
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+  },
+  escrow: {
+    signerPrivateKey: env.ESCROW_SIGNER_PRIVATE_KEY,
   },
   jwt: {
     secret: env.JWT_SECRET,

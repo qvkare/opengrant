@@ -5,6 +5,7 @@ import { Script, console } from "forge-std/Script.sol";
 import { OpenGrantRegistry } from "../src/OpenGrantRegistry.sol";
 import { OpenGrantPayments } from "../src/OpenGrantPayments.sol";
 import { OpenGrantFactory } from "../src/OpenGrantFactory.sol";
+import { OpenGrantEscrow } from "../src/OpenGrantEscrow.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
@@ -181,6 +182,61 @@ contract UpgradeRegistryScript is Script {
         console.log("Registry upgraded successfully");
 
         vm.stopBroadcast();
+    }
+}
+
+/**
+ * @title DeployEscrowScript
+ * @notice Deploys the OpenGrant Escrow contract for open source funding
+ *
+ * Usage:
+ *   DEPLOYER_PRIVATE_KEY=... ESCROW_SIGNER=... forge script \
+ *     script/Deploy.s.sol:DeployEscrowScript --rpc-url $RPC_URL --broadcast -vvvv
+ */
+contract DeployEscrowScript is Script {
+    function _getChainConfig() internal view returns (address usdc, string memory name) {
+        uint256 chainId = block.chainid;
+        if (chainId == 1)      return (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, "Ethereum Mainnet");
+        if (chainId == 8453)   return (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913, "Base Mainnet");
+        if (chainId == 42161)  return (0xaf88d065e77c8cC2239327C5EDb3A432268e5831, "Arbitrum One");
+        if (chainId == 59144)  return (0xfece4462d57bd51a6a552365a011b95f0e16d9b7, "Linea Mainnet");
+        if (chainId == 137)    return (0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359, "Polygon PoS");
+        if (chainId == 84532)  return (0x036CbD53842c5426634e7929541eC2318f3dCF7e, "Base Sepolia");
+        if (chainId == 421614) return (0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d, "Arbitrum Sepolia");
+        if (chainId == 59141)  return (0xB33a204B04C0BBe78eB4252c6264c5C94e2Fb0dB, "Linea Sepolia");
+        if (chainId == 80002)  return (0x41E94Eb71Ef8C9770bAd3BbD3E492065b2B8cE75, "Polygon Amoy");
+        revert("Unsupported chain");
+    }
+
+    function run() external {
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address escrowSigner = vm.envAddress("ESCROW_SIGNER");
+
+        (address usdcAddress, string memory networkName) = _getChainConfig();
+
+        console.log("=== OpenGrant Escrow Deployment ===");
+        console.log("Network:", networkName);
+        console.log("Chain ID:", block.chainid);
+        console.log("USDC:", usdcAddress);
+        console.log("Signer:", escrowSigner);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        address deployer = vm.addr(deployerPrivateKey);
+
+        OpenGrantEscrow escrow = new OpenGrantEscrow(
+            usdcAddress,
+            escrowSigner,
+            deployer
+        );
+        console.log("Escrow:", address(escrow));
+
+        vm.stopBroadcast();
+
+        console.log("");
+        console.log("Add to your .env:");
+        console.log("OPENGRANT_ESCROW_ADDRESS=", address(escrow));
+        console.log("ESCROW_SIGNER_PRIVATE_KEY=<the private key for", escrowSigner, ">");
     }
 }
 
