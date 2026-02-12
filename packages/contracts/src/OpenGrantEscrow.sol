@@ -106,6 +106,7 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
     ) external whenNotPaused nonReentrant {
         uint256 len = repoHashes.length;
         require(len > 0, "Empty arrays");
+        require(len <= 100, "Too many repos in batch");
         require(len == amounts.length && len == redistributeFlags.length, "Array length mismatch");
 
         // Calculate total and validate
@@ -141,6 +142,13 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
         require(wallet != address(0), "Invalid wallet");
         require(repoBalances[repoHash] > 0, "No funds to claim");
         require(!usedNonces[nonce], "Nonce already used");
+
+        // Enforce consistent wallet: once claimed, subsequent claims must go to same wallet
+        address previousWallet = repoClaimedWallet[repoHash];
+        require(
+            previousWallet == address(0) || previousWallet == wallet,
+            "Wallet mismatch: repo already claimed by different wallet"
+        );
 
         // Verify backend signature
         bytes32 messageHash = keccak256(
@@ -312,9 +320,13 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
             repoDonorCount[repoHash]++;
         }
 
+        bool isFirstDonation = existing.amount == 0;
         existing.amount += amount;
         existing.timestamp = block.timestamp;
-        existing.redistributeOnTimeout = redistributeOnTimeout;
+        // Only set redistributeOnTimeout on first donation to prevent silent overwrite
+        if (isFirstDonation) {
+            existing.redistributeOnTimeout = redistributeOnTimeout;
+        }
 
         repoBalances[repoHash] += amount;
         repoTotalDonated[repoHash] += amount;

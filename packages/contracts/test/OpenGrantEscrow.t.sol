@@ -600,6 +600,98 @@ contract OpenGrantEscrowTest is Test {
     // EDGE CASES
     // ============================================
 
+    // ============================================
+    // SECURITY: Wallet mismatch on re-claim (C1)
+    // ============================================
+
+    function test_claim_revertsDifferentWalletAfterClaim() public {
+        // First round: donate and claim to wallet A
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        uint256 nonce1 = 1;
+        bytes memory sig1 = _signClaim(repoHash1, claimWallet, nonce1);
+        escrow.claim(repoHash1, claimWallet, nonce1, sig1);
+
+        // Second round: new donation
+        vm.prank(donor2);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        // Try to claim to a DIFFERENT wallet
+        address differentWallet = address(0xDEAD);
+        uint256 nonce2 = 2;
+        bytes memory sig2 = _signClaim(repoHash1, differentWallet, nonce2);
+
+        vm.expectRevert("Wallet mismatch: repo already claimed by different wallet");
+        escrow.claim(repoHash1, differentWallet, nonce2, sig2);
+    }
+
+    function test_claim_allowsSameWalletReClaim() public {
+        // First round: donate and claim to wallet A
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        uint256 nonce1 = 1;
+        bytes memory sig1 = _signClaim(repoHash1, claimWallet, nonce1);
+        escrow.claim(repoHash1, claimWallet, nonce1, sig1);
+
+        // Second round: new donation, same wallet claims again
+        vm.prank(donor2);
+        escrow.donate(repoHash1, TEN_USDC * 2, false);
+
+        uint256 nonce2 = 2;
+        bytes memory sig2 = _signClaim(repoHash1, claimWallet, nonce2);
+        escrow.claim(repoHash1, claimWallet, nonce2, sig2);
+
+        assertEq(escrow.repoTotalClaimed(repoHash1), TEN_USDC * 3);
+        assertEq(escrow.repoClaimedWallet(repoHash1), claimWallet);
+    }
+
+    // ============================================
+    // SECURITY: Batch size limit (H1)
+    // ============================================
+
+    function test_batchDonate_revertsTooMany() public {
+        bytes32[] memory repos = new bytes32[](101);
+        uint256[] memory amounts = new uint256[](101);
+        bool[] memory flags = new bool[](101);
+
+        for (uint256 i = 0; i < 101; i++) {
+            repos[i] = keccak256(abi.encodePacked(uint256(i + 1000)));
+            amounts[i] = ONE_USDC;
+            flags[i] = false;
+        }
+
+        vm.prank(donor1);
+        vm.expectRevert("Too many repos in batch");
+        escrow.batchDonate(repos, amounts, flags);
+    }
+
+    // ============================================
+    // SECURITY: redistributeOnTimeout preservation (M2)
+    // ============================================
+
+    function test_donate_preservesRedistributeFlag() public {
+        // First donation with redistribute=true
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, true);
+
+        IOpenGrantEscrow.Donation memory d1 = escrow.getDonation(repoHash1, donor1);
+        assertTrue(d1.redistributeOnTimeout);
+
+        // Second donation with redistribute=false - should NOT overwrite
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        IOpenGrantEscrow.Donation memory d2 = escrow.getDonation(repoHash1, donor1);
+        assertTrue(d2.redistributeOnTimeout); // Still true from first donation
+        assertEq(d2.amount, TEN_USDC * 2); // Amount accumulated
+    }
+
+    // ============================================
+    // EDGE CASES
+    // ============================================
+
     function test_donate_exactMinimum() public {
         vm.prank(donor1);
         escrow.donate(repoHash1, ONE_USDC, false);

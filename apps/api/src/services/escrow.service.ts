@@ -99,7 +99,7 @@ function getPublicClient() {
  * Get the deployed escrow contract address
  */
 export function getEscrowAddress(): Address {
-  const addr = process.env.OPENGRANT_ESCROW_ADDRESS;
+  const addr = config.contracts.escrow;
   if (!addr) {
     throw new Error("OPENGRANT_ESCROW_ADDRESS not configured");
   }
@@ -160,7 +160,7 @@ export async function signClaimAuthorization(
   wallet: `0x${string}`,
   nonce: bigint
 ): Promise<`0x${string}`> {
-  const signerKey = process.env.ESCROW_SIGNER_PRIVATE_KEY;
+  const signerKey = config.escrow.signerPrivateKey;
   if (!signerKey) {
     throw new Error("ESCROW_SIGNER_PRIVATE_KEY not configured");
   }

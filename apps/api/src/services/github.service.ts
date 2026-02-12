@@ -5,6 +5,13 @@ import { githubRepos, type GithubRepo } from "@opengrant/database";
 
 const GITHUB_API = "https://api.github.com";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
+
+function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
 
 interface GitHubApiRepo {
   id: number;
@@ -80,7 +87,7 @@ export async function syncTopRepos(limit: number = 500): Promise<number> {
     const remaining = limit - synced;
     const count = Math.min(perPage, remaining);
 
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${GITHUB_API}/search/repositories?q=stars:>1000&sort=stars&order=desc&per_page=${count}&page=${page}`,
       { headers: githubHeaders() }
     );
@@ -137,7 +144,7 @@ export async function getRepoByOwnerName(
   }
 
   // Fetch from GitHub
-  const res = await fetch(`${GITHUB_API}/repos/${owner}/${name}`, {
+  const res = await fetchWithTimeout(`${GITHUB_API}/repos/${owner}/${name}`, {
     headers: githubHeaders(),
   });
 
@@ -175,10 +182,12 @@ export async function searchRepos(params: SearchParams) {
     conditions.push(eq(githubRepos.language, params.language));
   }
   if (params.q) {
+    // Escape SQL LIKE wildcard characters to prevent wildcard injection
+    const escapedQ = params.q.replace(/[%_\\]/g, "\\$&");
     conditions.push(
       or(
-        ilike(githubRepos.fullName, `%${params.q}%`),
-        ilike(githubRepos.description, `%${params.q}%`)
+        ilike(githubRepos.fullName, `%${escapedQ}%`),
+        ilike(githubRepos.description, `%${escapedQ}%`)
       )
     );
   }
@@ -229,7 +238,7 @@ export async function verifyRepoOwnership(
   githubAccessToken: string,
   githubId: number
 ): Promise<boolean> {
-  const res = await fetch(`${GITHUB_API}/repositories/${githubId}`, {
+  const res = await fetchWithTimeout(`${GITHUB_API}/repositories/${githubId}`, {
     headers: {
       Authorization: `Bearer ${githubAccessToken}`,
       Accept: "application/vnd.github+json",
@@ -250,7 +259,7 @@ export async function checkFundingYml(
   owner: string,
   name: string
 ): Promise<string | null> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${GITHUB_API}/repos/${owner}/${name}/contents/.github/FUNDING.yml`,
     { headers: githubHeaders() }
   );
@@ -273,7 +282,7 @@ export async function resolveNpmToGithub(
   packageName: string
 ): Promise<{ owner: string; repo: string; githubId: number } | null> {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`);
+    const res = await fetchWithTimeout(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`);
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -283,7 +292,7 @@ export async function resolveNpmToGithub(
 
     const [, owner, repo] = match;
     // Get GitHub ID
-    const ghRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
+    const ghRes = await fetchWithTimeout(`${GITHUB_API}/repos/${owner}/${repo}`, {
       headers: githubHeaders(),
     });
     if (!ghRes.ok) return null;
@@ -302,7 +311,7 @@ export async function resolveCrateToGithub(
   crateName: string
 ): Promise<{ owner: string; repo: string; githubId: number } | null> {
   try {
-    const res = await fetch(`https://crates.io/api/v1/crates/${encodeURIComponent(crateName)}`);
+    const res = await fetchWithTimeout(`https://crates.io/api/v1/crates/${encodeURIComponent(crateName)}`);
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -311,7 +320,7 @@ export async function resolveCrateToGithub(
     if (!match) return null;
 
     const [, owner, repo] = match;
-    const ghRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
+    const ghRes = await fetchWithTimeout(`${GITHUB_API}/repos/${owner}/${repo}`, {
       headers: githubHeaders(),
     });
     if (!ghRes.ok) return null;
@@ -335,7 +344,7 @@ export async function resolveGoModToGithub(
     if (!match) return null;
 
     const [, owner, repo] = match;
-    const ghRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
+    const ghRes = await fetchWithTimeout(`${GITHUB_API}/repos/${owner}/${repo}`, {
       headers: githubHeaders(),
     });
     if (!ghRes.ok) return null;

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { authMiddleware, AuthRequest } from "../../middleware/auth.middleware.js";
 import { db } from "../../db/index.js";
@@ -264,12 +264,12 @@ router.post("/donate", authMiddleware, async (req: AuthRequest, res: Response) =
       })
       .returning();
 
-    // Update repo stats
+    // Update repo stats (donorCount via subquery for atomicity)
     await db
       .update(githubRepos)
       .set({
         totalFunded: sql`(COALESCE(${githubRepos.totalFunded}, '0')::numeric + ${parseFloat(amount)}::numeric)::text`,
-        donorCount: sql`${githubRepos.donorCount} + 1`,
+        donorCount: sql`(SELECT COUNT(DISTINCT ${fundDonations.donorWallet}) FROM ${fundDonations} WHERE ${fundDonations.repoId} = ${githubRepos.id} AND ${fundDonations.status} = 'confirmed')`,
         updatedAt: new Date(),
       })
       .where(eq(githubRepos.id, repoId));
@@ -290,6 +290,10 @@ router.post("/analyze", authMiddleware, async (req: AuthRequest, res: Response) 
 
   if (!content || !packageManager) {
     return res.status(400).json({ error: "Missing required fields: content, packageManager" });
+  }
+
+  if (typeof content !== "string" || content.length > 512_000) {
+    return res.status(400).json({ error: "Manifest content too large (max 512KB)" });
   }
 
   if (!["npm", "cargo", "go"].includes(packageManager)) {
@@ -433,8 +437,8 @@ router.post("/distribute", authMiddleware, async (req: AuthRequest, res: Respons
         repo = newRepo;
       }
 
-      // Use a unique identifier per distribution entry
-      const distTxHash = `${txHash}-${dist.repoHash.slice(0, 10)}`;
+      // Use batch txHash with index for unique identifier per distribution entry
+      const distTxHash = `${txHash}:batch:${randomUUID()}`;
 
       await db.insert(fundDonations).values({
         repoId: repo.id,
@@ -448,12 +452,12 @@ router.post("/distribute", authMiddleware, async (req: AuthRequest, res: Respons
         refundEligibleAt,
       });
 
-      // Update repo stats
+      // Update repo stats (donorCount via subquery for atomicity)
       await db
         .update(githubRepos)
         .set({
           totalFunded: sql`(COALESCE(${githubRepos.totalFunded}, '0')::numeric + ${dist.amount}::numeric)::text`,
-          donorCount: sql`${githubRepos.donorCount} + 1`,
+          donorCount: sql`(SELECT COUNT(DISTINCT ${fundDonations.donorWallet}) FROM ${fundDonations} WHERE ${fundDonations.repoId} = ${githubRepos.id} AND ${fundDonations.status} = 'confirmed')`,
           updatedAt: new Date(),
         })
         .where(eq(githubRepos.id, repo.id));
@@ -543,6 +547,10 @@ router.post("/refund", authMiddleware, async (req: AuthRequest, res: Response) =
 
   if (!donationId || !txHash) {
     return res.status(400).json({ error: "Missing required fields: donationId, txHash" });
+  }
+
+  if (typeof txHash !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+    return res.status(400).json({ error: "Invalid transaction hash" });
   }
 
   try {
@@ -656,7 +664,7 @@ router.post("/claim/authorize", authMiddleware, async (req: AuthRequest, res: Re
       repoHash: repo.repoHash,
       nonce: nonce.toString(),
       signature,
-      escrowAddress: process.env.OPENGRANT_ESCROW_ADDRESS,
+      escrowAddress: config.contracts.escrow,
       chainId: config.blockchain.chainId,
     });
   } catch (error) {
