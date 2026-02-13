@@ -53,11 +53,19 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
 
     // Cooldown
     uint256 public constant COOLDOWN_PERIOD = 7 days;
+    uint256 public constant WITHDRAW_WINDOW = 3 days; // Must withdraw within 3 days after cooldown
     mapping(address => uint256) public cooldownStart;
     mapping(address => uint256) public cooldownAmount;
 
+    // Effective supply (totalSupply minus all cooldown amounts)
+    // Used for reward calculation — cooldown tokens don't earn rewards
+    uint256 private _totalCooldownAmount;
+
     // Reward duration
     uint256 public constant REWARD_DURATION = 30 days;
+
+    // Reward notifier (can call notifyUSDCReward in addition to owner)
+    address public rewardNotifier;
 
     // ============================================
     // EVENTS
@@ -71,6 +79,7 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     event USDCRewardPaid(address indexed user, uint256 reward);
     event GrantRewardAdded(uint256 reward, uint256 duration);
     event USDCRewardAdded(uint256 reward, uint256 duration);
+    event RewardNotifierUpdated(address indexed oldNotifier, address indexed newNotifier);
 
     // ============================================
     // CONSTRUCTOR
@@ -130,17 +139,19 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     }
 
     function grantRewardPerToken() public view returns (uint256) {
-        if (_totalSupply == 0) {
+        uint256 effectiveSupply = _totalSupply - _totalCooldownAmount;
+        if (effectiveSupply == 0) {
             return grantRewardPerTokenStored;
         }
         return grantRewardPerTokenStored +
-            ((grantLastTimeRewardApplicable() - grantLastUpdateTime) * grantRewardRate * 1e18) /
-            _totalSupply;
+            ((grantLastTimeRewardApplicable() - grantLastUpdateTime) * grantRewardRate * 1e27) /
+            effectiveSupply;
     }
 
     function earnedGrant(address account) public view returns (uint256) {
-        return (_balances[account] * (grantRewardPerToken() - grantUserRewardPerTokenPaid[account]))
-            / 1e18 + grantRewards[account];
+        uint256 effectiveBalance = _balances[account] - cooldownAmount[account];
+        return (effectiveBalance * (grantRewardPerToken() - grantUserRewardPerTokenPaid[account]))
+            / 1e27 + grantRewards[account];
     }
 
     // --- USDC reward views ---
@@ -150,17 +161,19 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     }
 
     function usdcRewardPerToken() public view returns (uint256) {
-        if (_totalSupply == 0) {
+        uint256 effectiveSupply = _totalSupply - _totalCooldownAmount;
+        if (effectiveSupply == 0) {
             return usdcRewardPerTokenStored;
         }
         return usdcRewardPerTokenStored +
-            ((usdcLastTimeRewardApplicable() - usdcLastUpdateTime) * usdcRewardRate * 1e18) /
-            _totalSupply;
+            ((usdcLastTimeRewardApplicable() - usdcLastUpdateTime) * usdcRewardRate * 1e27) /
+            effectiveSupply;
     }
 
     function earnedUSDC(address account) public view returns (uint256) {
-        return (_balances[account] * (usdcRewardPerToken() - usdcUserRewardPerTokenPaid[account]))
-            / 1e18 + usdcRewards[account];
+        uint256 effectiveBalance = _balances[account] - cooldownAmount[account];
+        return (effectiveBalance * (usdcRewardPerToken() - usdcUserRewardPerTokenPaid[account]))
+            / 1e27 + usdcRewards[account];
     }
 
     // ============================================
@@ -189,10 +202,12 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     function requestWithdraw(uint256 amount) external nonReentrant updateRewards(msg.sender) {
         require(amount > 0, "GRANTStaking: cannot withdraw zero");
         require(cooldownAmount[msg.sender] == 0, "GRANTStaking: existing cooldown active");
-        require(amount <= _balances[msg.sender], "GRANTStaking: insufficient available balance");
+        uint256 effectiveBalance = _balances[msg.sender] - cooldownAmount[msg.sender];
+        require(amount <= effectiveBalance, "GRANTStaking: insufficient available balance");
 
         cooldownAmount[msg.sender] = amount;
         cooldownStart[msg.sender] = block.timestamp;
+        _totalCooldownAmount += amount;
 
         emit CooldownStarted(msg.sender, amount, block.timestamp + COOLDOWN_PERIOD);
     }
@@ -203,13 +218,19 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     function withdraw() external nonReentrant updateRewards(msg.sender) {
         uint256 amount = cooldownAmount[msg.sender];
         require(amount > 0, "GRANTStaking: no pending withdrawal");
+        uint256 cooldownEnd = cooldownStart[msg.sender] + COOLDOWN_PERIOD;
         require(
-            block.timestamp >= cooldownStart[msg.sender] + COOLDOWN_PERIOD,
+            block.timestamp >= cooldownEnd,
             "GRANTStaking: cooldown not finished"
+        );
+        require(
+            block.timestamp <= cooldownEnd + WITHDRAW_WINDOW,
+            "GRANTStaking: withdraw window expired, cancel and re-request"
         );
 
         cooldownAmount[msg.sender] = 0;
         cooldownStart[msg.sender] = 0;
+        _totalCooldownAmount -= amount;
 
         _totalSupply -= amount;
         _balances[msg.sender] -= amount;
@@ -222,12 +243,13 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     /**
      * @notice Cancel pending withdrawal and re-stake
      */
-    function cancelCooldown() external nonReentrant {
+    function cancelCooldown() external nonReentrant updateRewards(msg.sender) {
         uint256 amount = cooldownAmount[msg.sender];
         require(amount > 0, "GRANTStaking: no pending withdrawal");
 
         cooldownAmount[msg.sender] = 0;
         cooldownStart[msg.sender] = 0;
+        _totalCooldownAmount -= amount;
 
         emit CooldownCancelled(msg.sender, amount);
     }
@@ -291,14 +313,28 @@ contract GRANTStaking is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
+     * @notice Set reward notifier address (e.g., OpenGrantPayments contract)
+     * @param _notifier New notifier address (or zero to disable)
+     */
+    function setRewardNotifier(address _notifier) external onlyOwner {
+        address old = rewardNotifier;
+        rewardNotifier = _notifier;
+        emit RewardNotifierUpdated(old, _notifier);
+    }
+
+    /**
      * @notice Add USDC revenue share rewards for a new period
      * @param reward Total USDC to distribute over REWARD_DURATION
-     * @dev Called by OpenGrantPayments or owner when distributing platform fees.
+     * @dev Called by OpenGrantPayments (rewardNotifier) or owner when distributing platform fees.
      *      Requires at least one staker to prevent reward loss.
      */
     function notifyUSDCReward(
         uint256 reward
-    ) external onlyOwner updateRewards(address(0)) {
+    ) external updateRewards(address(0)) {
+        require(
+            msg.sender == owner() || msg.sender == rewardNotifier,
+            "GRANTStaking: caller not authorized"
+        );
         require(reward > 0, "GRANTStaking: reward is zero");
         require(_totalSupply > 0, "GRANTStaking: no stakers");
 

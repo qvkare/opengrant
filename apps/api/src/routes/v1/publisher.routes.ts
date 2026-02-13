@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
-import { eq, and, desc, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, inArray, ne } from "drizzle-orm";
 import { authMiddleware, requireType, AuthRequest } from "../../middleware/auth.middleware.js";
+import { createRateLimitMiddleware } from "../../middleware/rateLimit.middleware.js";
 import { db } from "../../db/index.js";
 import {
   publishers,
@@ -9,7 +10,37 @@ import {
   usageRecords,
   payments,
   withdrawals,
+  githubRepos,
 } from "@opengrant/database";
+import {
+  getAuthenticatedUser,
+  listUserRepos,
+  getRepoByOwnerName,
+  verifyRepoOwnership,
+} from "../../services/github.service.js";
+
+// GitHub PAT format validation (ghp_, github_pat_, gho_ prefixes)
+const GITHUB_PAT_REGEX = /^(ghp_[a-zA-Z0-9]{36,255}|github_pat_[a-zA-Z0-9_]{22,255}|gho_[a-zA-Z0-9]{36,255})$/;
+
+function validateGithubToken(token: string): boolean {
+  return GITHUB_PAT_REGEX.test(token) && token.length <= 300;
+}
+
+// Slug format: lowercase alphanumeric with hyphens, 2-100 chars
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,98}[a-z0-9]$/;
+
+// Rate limiters for GitHub-related endpoints
+const githubVerifyRateLimit = createRateLimitMiddleware({
+  limit: 5,
+  windowSeconds: 60,
+  keyPrefix: "rl:gh-verify:",
+});
+
+const githubReposRateLimit = createRateLimitMiddleware({
+  limit: 20,
+  windowSeconds: 60,
+  keyPrefix: "rl:gh-repos:",
+});
 
 const router = Router();
 
@@ -52,6 +83,9 @@ router.get("/profile", async (req: AuthRequest, res: Response) => {
       vaultAddress: publisher.vaultAddress,
       status: publisher.status,
       verifiedAt: publisher.verifiedAt,
+      githubId: publisher.githubId,
+      githubVerified: publisher.githubVerified,
+      githubVerifiedAt: publisher.githubVerifiedAt,
       createdAt: publisher.createdAt,
     });
   } catch (error) {
@@ -68,6 +102,18 @@ router.put("/profile", async (req: AuthRequest, res: Response) => {
   const { name, email, bio, websiteUrl, githubUsername, avatarUrl } = req.body;
 
   try {
+    // Block manual githubUsername change if GitHub is verified
+    if (githubUsername !== undefined) {
+      const current = await db.query.publishers.findFirst({
+        where: eq(publishers.walletAddress, req.user!.wallet),
+      });
+      if (current?.githubVerified && githubUsername !== current.githubUsername) {
+        return res.status(400).json({
+          error: "Cannot manually change GitHub username when GitHub is verified. Re-verify with a different account instead.",
+        });
+      }
+    }
+
     const [updated] = await db
       .update(publishers)
       .set({
@@ -106,6 +152,140 @@ router.put("/profile", async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Verify publisher's GitHub identity
+ * POST /v1/publisher/verify-github
+ */
+router.post("/verify-github", githubVerifyRateLimit, async (req: AuthRequest, res: Response) => {
+  const githubToken = req.headers["x-github-token"] as string;
+
+  if (!githubToken) {
+    return res.status(400).json({ error: "X-GitHub-Token header is required" });
+  }
+
+  if (!validateGithubToken(githubToken)) {
+    return res.status(400).json({ error: "Invalid GitHub token format" });
+  }
+
+  try {
+    const publisher = await db.query.publishers.findFirst({
+      where: eq(publishers.walletAddress, req.user!.wallet),
+    });
+
+    if (!publisher) {
+      return res.status(404).json({ error: "Publisher not found" });
+    }
+
+    // Get GitHub user info
+    const ghUser = await getAuthenticatedUser(githubToken);
+    if (!ghUser) {
+      return res.status(401).json({ error: "Invalid GitHub token" });
+    }
+
+    // If already verified with same githubId, return idempotent response
+    if (publisher.githubVerified && publisher.githubId === ghUser.id) {
+      return res.json({
+        githubId: publisher.githubId,
+        githubUsername: publisher.githubUsername,
+        githubVerified: true,
+        githubVerifiedAt: publisher.githubVerifiedAt,
+      });
+    }
+
+    // Check if another publisher already claimed this GitHub ID
+    const existing = await db.query.publishers.findFirst({
+      where: and(
+        eq(publishers.githubId, ghUser.id),
+        ne(publishers.id, publisher.id)
+      ),
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        error: "This GitHub account is already linked to another publisher",
+      });
+    }
+
+    // If re-verifying with a DIFFERENT GitHub account, unlink stale repo associations
+    const oldGithubId = publisher.githubId;
+    if (oldGithubId && oldGithubId !== ghUser.id) {
+      // Nullify githubRepoId on APIs that were linked to repos owned by the old GitHub identity
+      await db
+        .update(apis)
+        .set({ githubRepoId: null, updatedAt: new Date() })
+        .where(eq(apis.publisherId, publisher.id));
+    }
+
+    // Atomic update - the unique index on githubId protects against TOCTOU race
+    const [updated] = await db
+      .update(publishers)
+      .set({
+        githubId: ghUser.id,
+        githubUsername: ghUser.login,
+        githubVerified: true,
+        githubVerifiedAt: new Date(),
+        avatarUrl: publisher.avatarUrl || ghUser.avatar_url,
+        updatedAt: new Date(),
+      })
+      .where(eq(publishers.id, publisher.id))
+      .returning();
+
+    res.json({
+      githubId: updated.githubId,
+      githubUsername: updated.githubUsername,
+      githubVerified: updated.githubVerified,
+      githubVerifiedAt: updated.githubVerifiedAt,
+    });
+  } catch (error: any) {
+    // Catch unique constraint violation on githubId (TOCTOU race protection)
+    if (error?.code === "23505" && error?.constraint?.includes("github_id")) {
+      return res.status(409).json({
+        error: "This GitHub account is already linked to another publisher",
+      });
+    }
+    console.error("Verify GitHub error:", error);
+    res.status(500).json({ error: "Failed to verify GitHub" });
+  }
+});
+
+/**
+ * List publisher's GitHub repos (admin access only)
+ * GET /v1/publisher/github-repos
+ */
+router.get("/github-repos", githubReposRateLimit, async (req: AuthRequest, res: Response) => {
+  const githubToken = req.headers["x-github-token"] as string;
+
+  if (!githubToken) {
+    return res.status(400).json({ error: "X-GitHub-Token header is required" });
+  }
+
+  if (!validateGithubToken(githubToken)) {
+    return res.status(400).json({ error: "Invalid GitHub token format" });
+  }
+
+  try {
+    const publisher = await db.query.publishers.findFirst({
+      where: eq(publishers.walletAddress, req.user!.wallet),
+    });
+
+    if (!publisher) {
+      return res.status(404).json({ error: "Publisher not found" });
+    }
+
+    if (!publisher.githubVerified) {
+      return res.status(403).json({ error: "GitHub verification required. Use POST /v1/publisher/verify-github first." });
+    }
+
+    const page = Math.min(Math.max(parseInt(req.query.page as string) || 1, 1), 100);
+    const repos = await listUserRepos(githubToken, page);
+
+    res.json(repos);
+  } catch (error) {
+    console.error("List GitHub repos error:", error);
+    res.status(500).json({ error: "Failed to list GitHub repos" });
+  }
+});
+
+/**
  * Get publisher's APIs
  * GET /v1/publisher/apis
  */
@@ -139,10 +319,22 @@ router.get("/apis", async (req: AuthRequest, res: Response) => {
  * POST /v1/publisher/apis
  */
 router.post("/apis", async (req: AuthRequest, res: Response) => {
-  const { name, slug, description, baseUrl, category, tags, documentationUrl, logoUrl, endpoints: endpointList } = req.body;
+  const { name, slug, description, baseUrl, category, tags, documentationUrl, logoUrl, endpoints: endpointList, githubRepo } = req.body;
 
   if (!name || !slug || !baseUrl) {
     return res.status(400).json({ error: "Name, slug, and baseUrl are required" });
+  }
+
+  // Validate slug format
+  if (!SLUG_REGEX.test(slug)) {
+    return res.status(400).json({ error: "Invalid slug format. Use lowercase alphanumeric characters and hyphens (2-100 chars)." });
+  }
+
+  // Validate endpoint prices upfront (before any DB writes)
+  if (endpointList && endpointList.length > 0) {
+    if (endpointList.some((ep: any) => ep.pricePerCall !== undefined && ep.pricePerCall < 0)) {
+      return res.status(400).json({ error: "Price per call cannot be negative" });
+    }
   }
 
   try {
@@ -166,6 +358,48 @@ router.post("/apis", async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: "Slug already exists for this publisher" });
     }
 
+    // Handle GitHub repo linking
+    let githubRepoId: string | undefined;
+    if (githubRepo) {
+      if (!publisher.githubVerified) {
+        return res.status(403).json({ error: "GitHub verification required to link a repo" });
+      }
+
+      const githubToken = req.headers["x-github-token"] as string;
+      if (!githubToken) {
+        return res.status(400).json({ error: "X-GitHub-Token header is required to link a GitHub repo" });
+      }
+
+      if (!validateGithubToken(githubToken)) {
+        return res.status(400).json({ error: "Invalid GitHub token format" });
+      }
+
+      // Validate format: owner/name
+      if (!/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(githubRepo)) {
+        return res.status(400).json({ error: "Invalid githubRepo format. Expected: owner/name" });
+      }
+
+      // Verify PAT belongs to the publisher's verified GitHub identity
+      const ghUser = await getAuthenticatedUser(githubToken);
+      if (!ghUser || ghUser.id !== publisher.githubId) {
+        return res.status(403).json({ error: "GitHub token does not match verified identity" });
+      }
+
+      const [repoOwner, repoName] = githubRepo.split("/");
+      const repo = await getRepoByOwnerName(repoOwner, repoName);
+      if (!repo) {
+        return res.status(404).json({ error: "GitHub repository not found" });
+      }
+
+      // Verify admin access
+      const isAdmin = await verifyRepoOwnership(githubToken, repo.githubId);
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Admin access required for this repository" });
+      }
+
+      githubRepoId = repo.id;
+    }
+
     // Create API
     const [api] = await db
       .insert(apis)
@@ -179,17 +413,13 @@ router.post("/apis", async (req: AuthRequest, res: Response) => {
         tags,
         documentationUrl,
         logoUrl,
+        githubRepoId: githubRepoId || null,
         status: "draft",
       })
       .returning();
 
     // Create endpoints
     if (endpointList && endpointList.length > 0) {
-      // Validate no negative prices
-      if (endpointList.some((ep: any) => ep.pricePerCall !== undefined && ep.pricePerCall < 0)) {
-        return res.status(400).json({ error: "Price per call cannot be negative" });
-      }
-
       await db.insert(endpoints).values(
         endpointList.map((ep: any) => ({
           apiId: api.id,

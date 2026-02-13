@@ -58,28 +58,28 @@ contract FeeDiscountOracleTest is Test {
 
     function test_DefaultFee_NoStake() public view {
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 500); // 5% default
+        assertEq(fee, 250); // 2.5% default
     }
 
     function test_SilverTier() public {
         _stakeAs(alice, 10_000 ether);
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 350); // 3.5%
+        assertEq(fee, 200); // 2.0%
     }
 
     function test_GoldTier() public {
         _stakeAs(alice, 50_000 ether);
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 250); // 2.5%
+        assertEq(fee, 150); // 1.5%
     }
 
     function test_PlatinumTier() public {
         _stakeAs(alice, 250_000 ether);
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 150); // 1.5%
+        assertEq(fee, 100); // 1.0%
     }
 
     function test_DiamondTier() public {
@@ -100,14 +100,14 @@ contract FeeDiscountOracleTest is Test {
         _stakeAs(alice, 9_999 ether);
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 500); // Standard (below Silver)
+        assertEq(fee, 250); // Standard (below Silver)
     }
 
     function test_ExactThreshold() public {
         _stakeAs(alice, 50_000 ether); // Exactly Gold threshold
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 250); // Gold
+        assertEq(fee, 150); // Gold
     }
 
     // ============================================
@@ -118,7 +118,7 @@ contract FeeDiscountOracleTest is Test {
         _stakeAs(alice, 50_000 ether); // Gold tier
 
         uint256 fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 250); // Gold
+        assertEq(fee, 150); // Gold
 
         // Request withdrawal of most tokens
         vm.prank(alice);
@@ -126,7 +126,7 @@ contract FeeDiscountOracleTest is Test {
 
         // Effective balance = 50k - 45k = 5k (below Silver)
         fee = oracle.getEffectiveFeeBPS(alice);
-        assertEq(fee, 500); // Back to Standard
+        assertEq(fee, 250); // Back to Standard
     }
 
     // ============================================
@@ -251,6 +251,21 @@ contract FeeDiscountOracleTest is Test {
         vm.prank(alice);
         vm.expectRevert();
         oracle.setDefaultFeeBPS(100);
+    }
+
+    // ============================================
+    // DIAGNOSTIC TESTS
+    // ============================================
+
+    function test_IsStakingContractResponsive() public view {
+        assertTrue(oracle.isStakingContractResponsive());
+    }
+
+    function test_IsStakingContractResponsive_NonContract() public {
+        FeeDiscountOracle freshOracle = new FeeDiscountOracle(address(staking), owner);
+        vm.prank(owner);
+        freshOracle.setStakingContract(address(0xDEAD)); // EOA, not a contract
+        assertFalse(freshOracle.isStakingContractResponsive());
     }
 
     // ============================================

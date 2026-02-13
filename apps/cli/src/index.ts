@@ -10,6 +10,7 @@ import { fund } from "./commands/fund.js";
 import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
+import { verifyGithub, createApi } from "./commands/publish.js";
 
 const program = new Command();
 
@@ -92,6 +93,31 @@ program
   .description("Initialize OpenGrant in current project")
   .option("-f, --force", "Overwrite existing config")
   .action(init);
+
+// ========================
+// Publish Commands
+// ========================
+
+const publishCommand = program
+  .command("publish")
+  .description("Publisher commands - register APIs and verify GitHub");
+
+publishCommand
+  .command("verify-github")
+  .description("Verify your GitHub identity")
+  .option("-t, --token <pat>", "GitHub personal access token")
+  .action(verifyGithub);
+
+publishCommand
+  .command("create-api")
+  .description("Register a new API")
+  .requiredOption("-n, --name <name>", "API name")
+  .requiredOption("-s, --slug <slug>", "URL slug")
+  .requiredOption("-u, --url <url>", "API base URL")
+  .option("-d, --description <desc>", "API description")
+  .option("--github-repo <owner/name>", "Link to a GitHub repository")
+  .option("--github-token <pat>", "GitHub personal access token (for repo linking)")
+  .action(createApi);
 
 // ========================
 // Config Commands

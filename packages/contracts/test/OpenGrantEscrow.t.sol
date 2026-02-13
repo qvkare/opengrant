@@ -6,7 +6,7 @@ import { OpenGrantEscrow } from "../src/OpenGrantEscrow.sol";
 import { IOpenGrantEscrow } from "../src/interfaces/IOpenGrantEscrow.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+// MessageHashUtils no longer needed — EIP-712 used for claim signatures
 
 // Mock USDC token
 contract MockUSDC is ERC20 {
@@ -22,8 +22,6 @@ contract MockUSDC is ERC20 {
 }
 
 contract OpenGrantEscrowTest is Test {
-    using MessageHashUtils for bytes32;
-
     MockUSDC public usdc;
     OpenGrantEscrow public escrow;
 
@@ -236,16 +234,30 @@ contract OpenGrantEscrowTest is Test {
     // CLAIM
     // ============================================
 
+    // EIP-712 domain and type hashes matching OpenGrantEscrow contract
+    bytes32 private constant CLAIM_TYPEHASH = keccak256("Claim(bytes32 repoHash,address wallet,uint256 nonce)");
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
+    function _domainSeparator() internal view returns (bytes32) {
+        return keccak256(abi.encode(
+            EIP712_DOMAIN_TYPEHASH,
+            keccak256(bytes("OpenGrantEscrow")),
+            keccak256(bytes("1")),
+            block.chainid,
+            address(escrow)
+        ));
+    }
+
     function _signClaim(
         bytes32 _repoHash,
         address _wallet,
         uint256 _nonce
     ) internal view returns (bytes memory) {
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(_repoHash, _wallet, _nonce, block.chainid, address(escrow))
-        );
-        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedHash);
+        // Build EIP-712 struct hash
+        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, _repoHash, _wallet, _nonce));
+        // Build EIP-712 digest
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
@@ -277,13 +289,11 @@ contract OpenGrantEscrowTest is Test {
         vm.prank(donor1);
         escrow.donate(repoHash1, TEN_USDC, false);
 
-        // Sign with wrong key
+        // Sign with wrong key using EIP-712
         uint256 wrongKey = 0xB0B;
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(repoHash1, claimWallet, uint256(1), block.chainid, address(escrow))
-        );
-        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
+        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, repoHash1, claimWallet, uint256(1)));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
         bytes memory badSig = abi.encodePacked(r, s, v);
 
         vm.expectRevert("Invalid signature");
@@ -324,6 +334,48 @@ contract OpenGrantEscrowTest is Test {
 
         vm.expectRevert("Invalid wallet");
         escrow.claim(repoHash1, address(0), nonce, sig);
+    }
+
+    function test_donate_allowedAfterClaim() public {
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        // Claim funds
+        bytes memory sig = _signClaim(repoHash1, claimWallet, 1);
+        vm.prank(claimWallet);
+        escrow.claim(repoHash1, claimWallet, 1, sig);
+
+        // New donation should succeed
+        vm.prank(donor2);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        assertEq(escrow.repoBalances(repoHash1), TEN_USDC);
+    }
+
+    function test_batchDonate_allowedAfterClaim() public {
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        // Claim repoHash1
+        bytes memory sig = _signClaim(repoHash1, claimWallet, 1);
+        vm.prank(claimWallet);
+        escrow.claim(repoHash1, claimWallet, 1, sig);
+
+        bytes32[] memory repos = new bytes32[](2);
+        uint256[] memory amounts = new uint256[](2);
+        bool[] memory flags = new bool[](2);
+        repos[0] = repoHash1;
+        repos[1] = repoHash2;
+        amounts[0] = TEN_USDC;
+        amounts[1] = TEN_USDC;
+        flags[0] = false;
+        flags[1] = false;
+
+        vm.prank(donor2);
+        escrow.batchDonate(repos, amounts, flags);
+
+        assertEq(escrow.repoBalances(repoHash1), TEN_USDC);
+        assertEq(escrow.repoBalances(repoHash2), TEN_USDC);
     }
 
     // ============================================
@@ -594,6 +646,35 @@ contract OpenGrantEscrowTest is Test {
         assertEq(info.totalDonated, HUNDRED_USDC);
         assertEq(info.totalClaimed, HUNDRED_USDC);
         assertEq(info.claimedWallet, claimWallet);
+    }
+
+    // ============================================
+    // TIMESTAMP PRESERVATION TEST
+    // ============================================
+
+    function test_donate_topupDoesNotResetTimestamp() public {
+        // Warp to a realistic timestamp first
+        uint256 startTime = 1700000000;
+        vm.warp(startTime);
+
+        // First donation at time T
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, true);
+
+        IOpenGrantEscrow.Donation memory d1 = escrow.getDonation(repoHash1, donor1);
+        assertEq(d1.timestamp, startTime);
+
+        // Warp forward 100 days
+        vm.warp(startTime + 100 days);
+
+        // Top-up donation — timestamp should NOT reset
+        vm.prank(donor1);
+        escrow.donate(repoHash1, TEN_USDC, false);
+
+        IOpenGrantEscrow.Donation memory d2 = escrow.getDonation(repoHash1, donor1);
+        assertEq(d2.amount, TEN_USDC * 2);
+        assertEq(d2.timestamp, startTime); // Original timestamp preserved
+        assertTrue(d2.redistributeOnTimeout); // Original flag preserved
     }
 
     // ============================================

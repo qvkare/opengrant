@@ -25,7 +25,6 @@ contract OpenGrantFactoryTest is Test {
     OpenGrantFactory public factory;
 
     address public owner = address(0x1);
-    address public platformFeeReceiver = address(0x2);
     address public paymentsContract = address(0x3);
     address public publisher1 = address(0x10);
     address public publisher2 = address(0x11);
@@ -37,7 +36,6 @@ contract OpenGrantFactoryTest is Test {
 
         factory = new OpenGrantFactory(
             address(usdc),
-            platformFeeReceiver,
             owner
         );
 
@@ -52,18 +50,12 @@ contract OpenGrantFactoryTest is Test {
 
     function test_Constructor() public view {
         assertEq(address(factory.usdc()), address(usdc));
-        assertEq(factory.platformFeeReceiver(), platformFeeReceiver);
         assertEq(factory.owner(), owner);
     }
 
     function test_RevertConstructor_InvalidUSDC() public {
         vm.expectRevert("OpenGrantFactory: invalid USDC");
-        new OpenGrantFactory(address(0), platformFeeReceiver, owner);
-    }
-
-    function test_RevertConstructor_InvalidFeeReceiver() public {
-        vm.expectRevert("OpenGrantFactory: invalid fee receiver");
-        new OpenGrantFactory(address(usdc), address(0), owner);
+        new OpenGrantFactory(address(0), owner);
     }
 
     // ============================================
@@ -91,7 +83,6 @@ contract OpenGrantFactoryTest is Test {
         PublisherVault vault = PublisherVault(vaultAddr);
         assertEq(vault.asset(), address(usdc));
         assertEq(vault.owner(), publisher1);
-        assertEq(vault.platformFeeReceiver(), platformFeeReceiver);
         assertEq(vault.paymentsContract(), paymentsContract);
         assertEq(vault.totalShares(), 10000);
         assertEq(vault.shares(payee1), 7000);
@@ -162,7 +153,6 @@ contract OpenGrantFactoryTest is Test {
         // Create a fresh factory without payments contract set
         OpenGrantFactory freshFactory = new OpenGrantFactory(
             address(usdc),
-            platformFeeReceiver,
             owner
         );
 
@@ -184,7 +174,6 @@ contract OpenGrantFactoryTest is Test {
     function test_GetVaultCount_InitiallyZero() public {
         OpenGrantFactory freshFactory = new OpenGrantFactory(
             address(usdc),
-            platformFeeReceiver,
             owner
         );
         assertEq(freshFactory.getVaultCount(), 0);
@@ -193,7 +182,6 @@ contract OpenGrantFactoryTest is Test {
     function test_GetAllVaults_InitiallyEmpty() public {
         OpenGrantFactory freshFactory = new OpenGrantFactory(
             address(usdc),
-            platformFeeReceiver,
             owner
         );
         address[] memory vaults = freshFactory.getAllVaults();
@@ -248,29 +236,6 @@ contract OpenGrantFactoryTest is Test {
         vm.prank(publisher1);
         vm.expectRevert();
         factory.setPaymentsContract(address(0x200));
-    }
-
-    function test_SetPlatformFeeReceiver() public {
-        address newReceiver = address(0x300);
-
-        vm.prank(owner);
-        vm.expectEmit(true, true, false, false);
-        emit OpenGrantFactory.PlatformFeeReceiverUpdated(platformFeeReceiver, newReceiver);
-        factory.setPlatformFeeReceiver(newReceiver);
-
-        assertEq(factory.platformFeeReceiver(), newReceiver);
-    }
-
-    function test_RevertSetPlatformFeeReceiver_ZeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert("OpenGrantFactory: invalid receiver");
-        factory.setPlatformFeeReceiver(address(0));
-    }
-
-    function test_RevertSetPlatformFeeReceiver_NotOwner() public {
-        vm.prank(publisher1);
-        vm.expectRevert();
-        factory.setPlatformFeeReceiver(address(0x300));
     }
 
     // ============================================

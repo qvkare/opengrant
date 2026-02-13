@@ -70,12 +70,33 @@ interface IOpenGrantPayments {
 
     /**
      * @notice Record a payment for an API call (called after x402 verification)
+     * @dev DEPRECATED: Disabled by default. Use recordPaymentWithDeposit instead.
+     *      This function does not atomically pull USDC — it relies on global balance proof only.
+     *      Per-publisher solvency is NOT enforced, creating cross-subsidy risk when the contract
+     *      is pre-funded. Enable via setLegacyRecordPayment(true) only if backward compatibility
+     *      is absolutely required.
      * @param apiId The API that was called
      * @param consumer The wallet that made the payment
      * @param amount The payment amount in USDC (6 decimals)
      * @param x402TxHash The x402 transaction hash for verification
      */
     function recordPayment(
+        bytes32 apiId,
+        address consumer,
+        uint256 amount,
+        bytes32 x402TxHash
+    ) external;
+
+    /**
+     * @notice Record a payment with atomic USDC deposit (preferred)
+     * @dev Caller must have approved this contract for `amount` USDC.
+     *      Provides per-publisher deposit proof, eliminating cross-subsidy risk.
+     * @param apiId The API that was called
+     * @param consumer The wallet that made the payment
+     * @param amount The payment amount in USDC (6 decimals)
+     * @param x402TxHash The x402 transaction hash for deduplication
+     */
+    function recordPaymentWithDeposit(
         bytes32 apiId,
         address consumer,
         uint256 amount,
@@ -107,6 +128,23 @@ interface IOpenGrantPayments {
     function getPendingEarnings(
         address publisher
     ) external view returns (uint256);
+
+    /**
+     * @notice Get total pending earnings across all publishers
+     * @return Total pending earnings
+     */
+    function getTotalPendingEarnings() external view returns (uint256);
+
+    /**
+     * @notice Get full accounting for a publisher
+     * @param publisher The publisher address
+     * @return deposited Total USDC deposited via recordPaymentWithDeposit
+     * @return pending Current pending (undistributed) earnings
+     * @return distributed Total USDC distributed to vault
+     */
+    function getPublisherAccounting(
+        address publisher
+    ) external view returns (uint256 deposited, uint256 pending, uint256 distributed);
 
     /**
      * @notice Get total platform fees collected

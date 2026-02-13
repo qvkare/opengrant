@@ -12,6 +12,13 @@ import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
  * @dev ERC-20 with Permit (gasless approve) and Votes (governance delegation)
  *      Fixed supply of 1,000,000,000 GRANT minted entirely at deployment.
  *      No mint function exists — supply can never increase.
+ *
+ *      Distribution plan (deployer allocates post-mint):
+ *        - 30% Staking rewards (4-year declining emissions via GRANTStaking)
+ *        - 25% Ecosystem & community grants
+ *        - 20% Team & advisors (4-year vesting, 1-year cliff)
+ *        - 15% Treasury (DAO-governed after launch)
+ *        - 10% Liquidity provisioning
  */
 contract GRANTToken is ERC20, ERC20Permit, ERC20Votes {
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals

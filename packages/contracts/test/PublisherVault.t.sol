@@ -19,6 +19,21 @@ contract MockUSDC is ERC20 {
     }
 }
 
+// Mock USDC with blacklist functionality (for griefing test)
+contract BlacklistableUSDC is ERC20 {
+    mapping(address => bool) public blacklisted;
+
+    constructor() ERC20("USD Coin", "USDC") {}
+    function decimals() public pure override returns (uint8) { return 6; }
+    function mint(address to, uint256 amount) external { _mint(to, amount); }
+    function blacklist(address account) external { blacklisted[account] = true; }
+
+    function _update(address from, address to, uint256 value) internal override {
+        require(!blacklisted[from] && !blacklisted[to], "Blacklisted");
+        super._update(from, to, value);
+    }
+}
+
 contract PublisherVaultTest is Test {
     MockUSDC public usdc;
     PublisherVault public vault;
@@ -48,7 +63,6 @@ contract PublisherVaultTest is Test {
             owner,
             payees,
             shares,
-            platformFeeReceiver,
             paymentsContract
         );
 
@@ -64,7 +78,6 @@ contract PublisherVaultTest is Test {
     function test_Initialization() public view {
         assertEq(vault.name(), "Publisher 1 Vault");
         assertEq(vault.symbol(), "PV1");
-        assertEq(vault.platformFeeReceiver(), platformFeeReceiver);
         assertEq(vault.paymentsContract(), paymentsContract);
         assertEq(vault.totalShares(), 10000);
         assertEq(vault.shares(payee1), 7000);
@@ -468,7 +481,6 @@ contract PublisherVaultTest is Test {
             owner,
             payees,
             shares,
-            platformFeeReceiver,
             paymentsContract
         );
 
@@ -579,6 +591,107 @@ contract PublisherVaultTest is Test {
         vm.prank(owner);
         vm.expectRevert("PublisherVault: zero address");
         vault.setPaymentsContract(address(0));
+    }
+
+    // ============================================
+    // ERC-4626 PREVIEW TESTS
+    // ============================================
+
+    function test_PreviewDeposit_ReturnsZero() public view {
+        assertEq(vault.previewDeposit(1000000), 0);
+    }
+
+    function test_PreviewMint_ReturnsZero() public view {
+        assertEq(vault.previewMint(1000000), 0);
+    }
+
+    function test_PreviewWithdraw_ReturnsZero() public view {
+        assertEq(vault.previewWithdraw(1000000), 0);
+    }
+
+    function test_PreviewRedeem_ReturnsZero() public view {
+        assertEq(vault.previewRedeem(1000000), 0);
+    }
+
+    // ============================================
+    // CONSTRUCTOR VALIDATION TESTS
+    // ============================================
+
+    function test_RevertConstructor_ZeroPaymentsContract() public {
+        address[] memory payees_ = new address[](1);
+        payees_[0] = payee1;
+        uint256[] memory shares_ = new uint256[](1);
+        shares_[0] = 10000;
+
+        vm.expectRevert("PublisherVault: invalid payments contract");
+        new PublisherVault(
+            IERC20(address(usdc)),
+            "Test Vault",
+            "TV",
+            owner,
+            payees_,
+            shares_,
+            address(0)
+        );
+    }
+
+    // ============================================
+    // GRIEFING PROTECTION TESTS (H2)
+    // ============================================
+
+    function test_UpdatePayees_SucceedsWithBlacklistedPayee() public {
+        // Deploy vault with blacklistable USDC
+        BlacklistableUSDC bUsdc = new BlacklistableUSDC();
+
+        address[] memory payees_ = new address[](2);
+        payees_[0] = payee1;
+        payees_[1] = payee2;
+        uint256[] memory shares_ = new uint256[](2);
+        shares_[0] = 7000;
+        shares_[1] = 3000;
+
+        PublisherVault bVault = new PublisherVault(
+            IERC20(address(bUsdc)), "B Vault", "BV", owner, payees_, shares_, paymentsContract
+        );
+
+        // Fund vault via payments contract
+        bUsdc.mint(paymentsContract, 1000000);
+        vm.prank(paymentsContract);
+        bUsdc.approve(address(bVault), type(uint256).max);
+        vm.prank(paymentsContract);
+        bVault.receivePayment(1000000);
+
+        // Blacklist payee1 — transfer to payee1 will revert
+        bUsdc.blacklist(payee1);
+
+        // updatePayees should still succeed (best-effort release)
+        address[] memory newPayees = new address[](1);
+        newPayees[0] = payee3;
+        uint256[] memory newShares = new uint256[](1);
+        newShares[0] = 10000;
+
+        vm.prank(owner);
+        bVault.updatePayees(newPayees, newShares);
+
+        // payee2 received their share (not blacklisted)
+        assertEq(bUsdc.balanceOf(payee2), 300000);
+        // payee1 received nothing (blacklisted)
+        assertEq(bUsdc.balanceOf(payee1), 0);
+        // Unreleased funds stay in vault
+        assertGt(bUsdc.balanceOf(address(bVault)), 0);
+
+        // Blacklisted payee's share is reserved (not redistributed to new payees)
+        // payee1 had 70% of 1,000,000 = 700,000
+        assertEq(bVault.unreleasedReserve(), 700000);
+
+        // New payee (payee3) should NOT have access to reserved funds
+        assertEq(bVault.releasable(payee3), 0);
+
+        // Owner can claim reserve and send to blacklisted payee's alternative address
+        vm.prank(owner);
+        bVault.claimUnreleasedReserve(payee3, 700000);
+        assertEq(bUsdc.balanceOf(payee3), 700000);
+        assertEq(bVault.unreleasedReserve(), 0);
     }
 
     // ============================================

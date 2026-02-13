@@ -51,8 +51,8 @@ contract DeployScript is Script {
     address constant USDC_LINEA_SEPOLIA  = 0xb33a204b04c0BBE78EB4252C6264C5C94e2FB0dB;
     address constant USDC_POLYGON_AMOY   = 0x41E94EB71EF8C9770BAD3bBd3e492065b2B8ce75;
 
-    // Platform fee: 5% (500 basis points)
-    uint256 constant PLATFORM_FEE_BPS = 500;
+    // Platform fee: 2.5% (250 basis points)
+    uint256 constant PLATFORM_FEE_BPS = 250;
 
     /**
      * @notice Resolve USDC address and network name from chain ID
@@ -122,7 +122,6 @@ contract DeployScript is Script {
         // 4. Deploy Factory
         OpenGrantFactory factory = new OpenGrantFactory(
             usdcAddress,
-            platformWallet,
             deployer
         );
         console.log("Factory:", address(factory));
@@ -138,9 +137,13 @@ contract DeployScript is Script {
 
         vm.stopBroadcast();
 
-        // NOTE: After deployment, authorize the API gateway as payments caller:
-        //   payments.setAuthorizedCaller(GATEWAY_ADDRESS, true);
-        // The gateway is the entity that calls recordPayment() after x402 verification.
+        // NOTE: After deployment:
+        // 1. Authorize the API gateway as payments caller:
+        //    payments.setAuthorizedCaller(GATEWAY_ADDRESS, true);
+        // 2. Deploy GRANT token + staking via DeployToken.s.sol which will:
+        //    - Set feeDiscountOracle and stakingRewardPool on Payments
+        //    - CRITICAL: Set staking.setRewardNotifier(address(payments))
+        //    Without setRewardNotifier, USDC sent to staking pool stays locked.
 
         // Print summary
         console.log("");

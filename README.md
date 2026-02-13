@@ -116,7 +116,7 @@ pnpm build            # Build all packages and apps
 pnpm typecheck        # Type check all packages
 
 # Testing
-pnpm turbo test       # Run all JS/TS tests (262 tests)
+pnpm turbo test       # Run all JS/TS tests (281 tests)
 cd packages/contracts && forge test  # Run Solidity tests (232 tests)
 
 # Database
@@ -171,6 +171,17 @@ opengrant stats
 
 # Create API key
 opengrant keys create --name "my-app"
+
+# Publisher: Verify GitHub identity
+opengrant publish verify-github --token ghp_xxx
+
+# Publisher: Register API with GitHub repo link
+opengrant publish create-api \
+  --name "Weather API" \
+  --slug "weather" \
+  --url "https://api.weather.example.com" \
+  --github-repo "ali/weather-api" \
+  --github-token ghp_xxx
 ```
 
 ## How It Works
@@ -213,6 +224,18 @@ opengrant keys create --name "my-app"
 4. Escrow transfers accumulated USDC to maintainer's wallet
 
 **Refund:** Unclaimed donations can be refunded after 365 days, or redistributed to other projects.
+
+### Publisher GitHub Verification
+
+Publishers can verify their GitHub identity to link their APIs to GitHub repositories. This creates a bridge between the escrow (donation) flow and the publisher (API revenue) flow:
+
+1. Publisher verifies GitHub identity: `POST /v1/publisher/verify-github` (with GitHub PAT)
+2. Backend calls GitHub API to confirm the user's identity (`GET /api.github.com/user`)
+3. Publisher links an API to a GitHub repo: `POST /v1/publisher/apis` with `githubRepo: "owner/name"`
+4. Backend verifies admin access on the repo via GitHub API
+5. The `apis.githubRepoId` column now references the same `github_repos` row used by the escrow system
+
+This means a project's fund page (`/fund/owner/name`) can show linked APIs, and a publisher's API page can show the associated funding status. The two revenue streams (donations and API income) remain separate wallets but are unified through GitHub identity.
 
 ## Environment Variables
 
@@ -262,13 +285,13 @@ Contracts are built with Foundry and support 9 EVM chains (5 mainnets + 4 testne
 ## Testing
 
 ```bash
-# All JS/TS tests (262 tests: 214 API + 48 SDK)
+# All JS/TS tests (281 tests: 233 API + 48 SDK)
 pnpm turbo test
 
 # Solidity tests (232 tests)
 cd packages/contracts && forge test -vvv
 
-# Total: 494 tests
+# Total: 513 tests
 ```
 
 ## Contributing

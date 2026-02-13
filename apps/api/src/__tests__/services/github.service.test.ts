@@ -84,6 +84,8 @@ import {
   verifyRepoOwnership,
   checkFundingYml,
   syncTopRepos,
+  getAuthenticatedUser,
+  listUserRepos,
 } from "../../services/github.service.js";
 
 describe("GitHub Service", () => {
@@ -365,6 +367,90 @@ describe("GitHub Service", () => {
 
       const count = await syncTopRepos(1);
       expect(count).toBe(1);
+    });
+  });
+
+  // ============================================
+  // getAuthenticatedUser
+  // ============================================
+
+  describe("getAuthenticatedUser", () => {
+    it("should return user info for valid token", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 12345,
+          login: "testuser",
+          avatar_url: "https://avatars.githubusercontent.com/u/12345",
+          name: "Test User",
+          bio: "Test bio",
+        }),
+      });
+
+      const user = await getAuthenticatedUser("ghp_valid_token");
+      expect(user).not.toBeNull();
+      expect(user!.id).toBe(12345);
+      expect(user!.login).toBe("testuser");
+      expect(user!.name).toBe("Test User");
+    });
+
+    it("should return null for invalid token", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      const user = await getAuthenticatedUser("ghp_invalid");
+      expect(user).toBeNull();
+    });
+  });
+
+  // ============================================
+  // listUserRepos
+  // ============================================
+
+  describe("listUserRepos", () => {
+    it("should return repos with admin access", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            id: 100,
+            owner: { login: "testuser" },
+            name: "my-repo",
+            full_name: "testuser/my-repo",
+            description: "My repo",
+            language: "TypeScript",
+            stargazers_count: 50,
+            permissions: { admin: true, push: true, pull: true },
+          },
+          {
+            id: 200,
+            owner: { login: "org" },
+            name: "shared-repo",
+            full_name: "org/shared-repo",
+            description: "Not admin",
+            language: "Go",
+            stargazers_count: 100,
+            permissions: { admin: false, push: true, pull: true },
+          },
+        ],
+      });
+
+      const repos = await listUserRepos("ghp_valid_token");
+      expect(repos).toHaveLength(1);
+      expect(repos[0].fullName).toBe("testuser/my-repo");
+      expect(repos[0].githubId).toBe(100);
+    });
+
+    it("should return empty array on error", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      const repos = await listUserRepos("ghp_invalid");
+      expect(repos).toEqual([]);
     });
   });
 });

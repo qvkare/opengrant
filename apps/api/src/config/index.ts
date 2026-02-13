@@ -144,6 +144,10 @@ export const config = {
     payments: env.OPENGRANT_PAYMENTS_ADDRESS,
     usdc: env.USDC_ADDRESS || CHAIN_USDC_ADDRESSES[chainId],
     escrow: env.OPENGRANT_ESCROW_ADDRESS,
+    // Hard-fail if payments address is missing in production (USDC would go to wrong address permanently)
+    _paymentsRequired: env.NODE_ENV === "production" && !env.OPENGRANT_PAYMENTS_ADDRESS
+      ? (() => { console.error("❌ OPENGRANT_PAYMENTS_ADDRESS is required in production. Without it, x402 USDC payments cannot enter the settlement flow."); process.exit(1); })()
+      : true,
   },
   github: {
     token: env.GITHUB_TOKEN,

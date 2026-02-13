@@ -355,6 +355,129 @@ contract OpenGrantRegistryTest is Test {
     }
 
     // ============================================
+    // MAX APIS PER PUBLISHER TEST
+    // ============================================
+
+    function test_RevertRegisterAPI_ExceedsMaxAPIs() public {
+        _setupPublisher(publisher1, vault1);
+
+        // Register 100 APIs (the maximum)
+        vm.startPrank(publisher1);
+        for (uint256 i = 0; i < 100; i++) {
+            registry.registerAPI(
+                string(abi.encodePacked("API ", vm.toString(i))),
+                string(abi.encodePacked("https://api", vm.toString(i), ".example.com")),
+                ""
+            );
+        }
+
+        // 101st should revert
+        vm.expectRevert("OpenGrantRegistry: max APIs per publisher reached");
+        registry.registerAPI("API 101", "https://api101.example.com", "");
+        vm.stopPrank();
+    }
+
+    // ============================================
+    // API NAME UNIQUENESS TEST
+    // ============================================
+
+    function test_RevertRegisterAPI_DuplicateName() public {
+        _setupPublisher(publisher1, vault1);
+
+        vm.startPrank(publisher1);
+        registry.registerAPI("My API", "https://api1.example.com", "");
+
+        vm.expectRevert("OpenGrantRegistry: API name already used");
+        registry.registerAPI("My API", "https://api2.example.com", "");
+        vm.stopPrank();
+    }
+
+    function test_RegisterAPI_SameNameDifferentPublisher() public {
+        _setupPublisher(publisher1, vault1);
+        _setupPublisher(publisher2, vault2);
+
+        vm.prank(publisher1);
+        registry.registerAPI("Shared Name", "https://pub1.example.com", "");
+
+        // Different publisher can use the same name
+        vm.prank(publisher2);
+        registry.registerAPI("Shared Name", "https://pub2.example.com", "");
+    }
+
+    // ============================================
+    // MAX ENDPOINTS PER API TEST
+    // ============================================
+
+    function test_RevertConfigureEndpoint_ExceedsMaxEndpoints() public {
+        _setupPublisher(publisher1, vault1);
+
+        vm.startPrank(publisher1);
+        bytes32 apiId = registry.registerAPI("My API", "https://api.example.com", "");
+
+        // Register 50 endpoints (the maximum)
+        for (uint256 i = 0; i < 50; i++) {
+            registry.configureEndpoint(
+                apiId,
+                string(abi.encodePacked("/v1/endpoint", vm.toString(i))),
+                "GET",
+                1000000,
+                100
+            );
+        }
+
+        // 51st should revert
+        vm.expectRevert("OpenGrantRegistry: max active endpoints per API reached");
+        registry.configureEndpoint(apiId, "/v1/overflow", "GET", 1000000, 100);
+        vm.stopPrank();
+    }
+
+    function test_ConfigureEndpoint_UpdateDoesNotCountAsNew() public {
+        _setupPublisher(publisher1, vault1);
+
+        vm.startPrank(publisher1);
+        bytes32 apiId = registry.registerAPI("My API", "https://api.example.com", "");
+
+        // Create 50 endpoints
+        for (uint256 i = 0; i < 50; i++) {
+            registry.configureEndpoint(
+                apiId,
+                string(abi.encodePacked("/v1/ep", vm.toString(i))),
+                "GET",
+                1000000,
+                100
+            );
+        }
+
+        // Updating an existing endpoint (same path+method) should succeed
+        registry.configureEndpoint(apiId, "/v1/ep0", "GET", 2000000, 200);
+        vm.stopPrank();
+
+        assertEq(registry.getEndpointPrice(keccak256(abi.encodePacked(apiId, "/v1/ep0", "GET"))), 2000000);
+    }
+
+    // ============================================
+    // ACTIVE API COUNT REUSE TEST
+    // ============================================
+
+    function test_DeactivateAPI_FreesSlotForNewAPI() public {
+        _setupPublisher(publisher1, vault1);
+
+        vm.startPrank(publisher1);
+
+        // Register an API
+        bytes32 apiId = registry.registerAPI("API 1", "https://api1.example.com", "");
+
+        // Deactivate it
+        registry.deactivateAPI(apiId);
+        assertFalse(registry.isAPIActive(apiId));
+
+        // Should be able to register a new API (slot freed)
+        bytes32 apiId2 = registry.registerAPI("API 2", "https://api2.example.com", "");
+        assertTrue(registry.isAPIActive(apiId2));
+        vm.stopPrank();
+    }
+
+    // ============================================
     // HELPER FUNCTIONS
     // ============================================
 

@@ -9,10 +9,10 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Used by OpenGrantPayments to apply tier-based fee discounts
  *
  *      Tier structure:
- *        Standard   (0 GRANT staked)          → 500 BPS (5.00%)
- *        Silver     (10,000 GRANT staked)     → 350 BPS (3.50%)
- *        Gold       (50,000 GRANT staked)     → 250 BPS (2.50%)
- *        Platinum   (250,000 GRANT staked)    → 150 BPS (1.50%)
+ *        Standard   (0 GRANT staked)          → 250 BPS (2.50%)
+ *        Silver     (10,000 GRANT staked)     → 200 BPS (2.00%)
+ *        Gold       (50,000 GRANT staked)     → 150 BPS (1.50%)
+ *        Platinum   (250,000 GRANT staked)    → 100 BPS (1.00%)
  *        Diamond    (1,000,000 GRANT staked)  → 50 BPS  (0.50%)
  */
 contract FeeDiscountOracle is Ownable {
@@ -31,7 +31,7 @@ contract FeeDiscountOracle is Ownable {
 
     address public stakingContract;
     Tier[] public tiers; // Sorted descending by minStake
-    uint256 public defaultFeeBPS = 500; // 5% for non-stakers
+    uint256 public defaultFeeBPS = 250; // 2.5% for non-stakers
 
     // ============================================
     // EVENTS
@@ -50,10 +50,10 @@ contract FeeDiscountOracle is Ownable {
         stakingContract = _stakingContract;
 
         // Initialize default tiers (descending order by minStake)
-        tiers.push(Tier({ minStake: 1_000_000 ether, feeBPS: 50 })); // Diamond
-        tiers.push(Tier({ minStake: 250_000 ether, feeBPS: 150 })); // Platinum
-        tiers.push(Tier({ minStake: 50_000 ether, feeBPS: 250 })); // Gold
-        tiers.push(Tier({ minStake: 10_000 ether, feeBPS: 350 })); // Silver
+        tiers.push(Tier({ minStake: 1_000_000 ether, feeBPS: 50 }));  // Diamond  (0.5%)
+        tiers.push(Tier({ minStake: 250_000 ether, feeBPS: 100 }));   // Platinum (1.0%)
+        tiers.push(Tier({ minStake: 50_000 ether, feeBPS: 150 }));    // Gold     (1.5%)
+        tiers.push(Tier({ minStake: 10_000 ether, feeBPS: 200 }));    // Silver   (2.0%)
     }
 
     // ============================================
@@ -162,6 +162,19 @@ contract FeeDiscountOracle is Ownable {
         defaultFeeBPS = newFeeBPS;
 
         emit DefaultFeeUpdated(oldFee, newFeeBPS);
+    }
+
+    /**
+     * @notice Check if the staking contract is responsive (for off-chain monitoring)
+     * @return True if staking contract responds to effectiveBalanceOf call
+     */
+    function isStakingContractResponsive() external view returns (bool) {
+        if (stakingContract == address(0)) return false;
+        if (stakingContract.code.length == 0) return false;
+        (bool success,) = stakingContract.staticcall(
+            abi.encodeWithSignature("effectiveBalanceOf(address)", address(0))
+        );
+        return success;
     }
 
     /**

@@ -2,9 +2,6 @@ import {
   createPublicClient,
   http,
   type Address,
-  keccak256,
-  encodePacked,
-  toBytes,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
@@ -152,8 +149,9 @@ export async function getDonationInfo(
 }
 
 /**
- * Sign a claim authorization for user-initiated claim
- * The backend signs: keccak256(abi.encodePacked(repoHash, wallet, nonce, chainId, escrowAddress))
+ * Sign a claim authorization for user-initiated claim using EIP-712 structured data
+ * The backend signs: EIP-712 typed data with domain "OpenGrantEscrow" v1
+ * Claim(bytes32 repoHash, address wallet, uint256 nonce)
  */
 export async function signClaimAuthorization(
   repoHash: `0x${string}`,
@@ -167,17 +165,28 @@ export async function signClaimAuthorization(
 
   const account = privateKeyToAccount(signerKey as `0x${string}`);
   const escrowAddress = getEscrowAddress();
-  const chainId = BigInt(config.blockchain.chainId);
+  const chainId = config.blockchain.chainId;
 
-  const messageHash = keccak256(
-    encodePacked(
-      ["bytes32", "address", "uint256", "uint256", "address"],
-      [repoHash, wallet, nonce, chainId, escrowAddress]
-    )
-  );
-
-  const signature = await account.signMessage({
-    message: { raw: toBytes(messageHash) },
+  const signature = await account.signTypedData({
+    domain: {
+      name: "OpenGrantEscrow",
+      version: "1",
+      chainId,
+      verifyingContract: escrowAddress,
+    },
+    types: {
+      Claim: [
+        { name: "repoHash", type: "bytes32" },
+        { name: "wallet", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    },
+    primaryType: "Claim",
+    message: {
+      repoHash,
+      wallet,
+      nonce,
+    },
   });
 
   return signature;

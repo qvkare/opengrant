@@ -10,8 +10,8 @@ import {
 import { config } from "../config/index.js";
 import type { Address, Hash } from "viem";
 
-// Platform fee percentage (e.g., 10% = 1000 basis points)
-const PLATFORM_FEE_BPS = 1000; // 10%
+// Platform fee percentage (e.g., 2.5% = 250 basis points)
+const PLATFORM_FEE_BPS = 250; // 2.5%
 
 export interface PaymentVerificationResult {
   valid: boolean;

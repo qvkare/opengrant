@@ -39,11 +39,23 @@ contract OpenGrantRegistry is
     // Payments contract reference
     address public paymentsContract;
 
+    // Maximum APIs per publisher (unbounded loop protection)
+    uint256 public constant MAX_APIS_PER_PUBLISHER = 100;
+
+    // Maximum endpoints per API (unbounded loop protection)
+    uint256 public constant MAX_ENDPOINTS_PER_API = 50;
+
+    // API name uniqueness per publisher
+    mapping(bytes32 => bool) private _publisherApiNames;
+
+    // Active API count per publisher (allows slot reuse after deactivation)
+    mapping(address => uint256) private _publisherActiveAPICount;
+
     // ============================================
     // STORAGE GAP (for future upgrades)
     // ============================================
 
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 
     // ============================================
     // MODIFIERS
@@ -124,19 +136,43 @@ contract OpenGrantRegistry is
     }
 
     /**
+     * @notice Update publisher vault address without deactivating APIs
+     * @dev Allows changing the revenue destination without disrupting existing API registrations.
+     *      Pending earnings for existing apiIds will be routed to the new vault on next distribution.
+     * @param newVault New vault address
+     */
+    event PublisherVaultUpdated(address indexed publisher, address indexed oldVault, address indexed newVault);
+
+    function updatePublisherVault(
+        address newVault
+    ) external whenNotPaused onlyActivePublisher {
+        require(newVault != address(0), "OpenGrantRegistry: invalid vault address");
+        require(newVault != _publishers[msg.sender].vault, "OpenGrantRegistry: same vault");
+
+        address oldVault = _publishers[msg.sender].vault;
+        _publishers[msg.sender].vault = newVault;
+
+        emit PublisherVaultUpdated(msg.sender, oldVault, newVault);
+    }
+
+    /**
      * @inheritdoc IOpenGrantRegistry
      */
     function deactivatePublisher() external override onlyActivePublisher {
         _publishers[msg.sender].isActive = false;
 
-        // Deactivate all APIs
+        // Deactivate all APIs (reset active count to 0) and release names
         bytes32[] memory apiIds = _publisherAPIs[msg.sender];
         for (uint256 i = 0; i < apiIds.length; i++) {
             if (_apis[apiIds[i]].isActive) {
                 _apis[apiIds[i]].isActive = false;
+                // Release API name for future reuse
+                bytes32 nameHash = keccak256(abi.encodePacked(msg.sender, _apis[apiIds[i]].name));
+                _publisherApiNames[nameHash] = false;
                 emit APIDeactivated(apiIds[i]);
             }
         }
+        _publisherActiveAPICount[msg.sender] = 0;
 
         emit PublisherDeactivated(msg.sender);
     }
@@ -177,6 +213,16 @@ contract OpenGrantRegistry is
         onlyActivePublisher
         returns (bytes32 apiId)
     {
+        require(
+            _publisherActiveAPICount[msg.sender] < MAX_APIS_PER_PUBLISHER,
+            "OpenGrantRegistry: max APIs per publisher reached"
+        );
+
+        // Ensure API name is unique per publisher
+        bytes32 nameHash = keccak256(abi.encodePacked(msg.sender, name));
+        require(!_publisherApiNames[nameHash], "OpenGrantRegistry: API name already used");
+        _publisherApiNames[nameHash] = true;
+
         apiId = keccak256(abi.encodePacked(msg.sender, name, _apiCount));
 
         require(
@@ -197,6 +243,7 @@ contract OpenGrantRegistry is
         });
 
         _publisherAPIs[msg.sender].push(apiId);
+        _publisherActiveAPICount[msg.sender]++;
         _apiCount++;
 
         emit APIRegistered(apiId, msg.sender, name, baseUrl);
@@ -227,6 +274,11 @@ contract OpenGrantRegistry is
         require(_apis[apiId].isActive, "OpenGrantRegistry: API already inactive");
 
         _apis[apiId].isActive = false;
+        _publisherActiveAPICount[msg.sender]--;
+
+        // Release API name for future reuse
+        bytes32 nameHash = keccak256(abi.encodePacked(msg.sender, _apis[apiId].name));
+        _publisherApiNames[nameHash] = false;
 
         // Deactivate all endpoints
         bytes32[] memory endpointIds = _apiEndpoints[apiId];
@@ -300,14 +352,22 @@ contract OpenGrantRegistry is
 
         // Add to API endpoints if new
         bool exists = false;
+        uint256 activeCount = 0;
         bytes32[] memory existing = _apiEndpoints[apiId];
         for (uint256 i = 0; i < existing.length; i++) {
             if (existing[i] == endpointId) {
                 exists = true;
-                break;
+            }
+            if (_endpoints[existing[i]].isActive) {
+                activeCount++;
             }
         }
         if (!exists) {
+            // Count the new endpoint being added as active
+            require(
+                activeCount + 1 <= MAX_ENDPOINTS_PER_API,
+                "OpenGrantRegistry: max active endpoints per API reached"
+            );
             _apiEndpoints[apiId].push(endpointId);
         }
 

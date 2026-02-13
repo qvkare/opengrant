@@ -109,8 +109,13 @@ contract DeployTokenScript is Script {
             payments.setFeeDiscountOracle(address(oracle));
             payments.setStakingRewardPool(address(staking));
             console.log("OpenGrantPayments configured with oracle and staking pool");
+
+            // 5. Set rewardNotifier so Payments can trigger USDC reward distribution
+            staking.setRewardNotifier(paymentsAddress);
+            console.log("GRANTStaking rewardNotifier set to Payments contract");
         } else {
             console.log("WARN: OPENGRANT_PAYMENTS_ADDRESS not set, skipping integration");
+            console.log("  Post-deploy: call staking.setRewardNotifier(paymentsAddress)");
         }
 
         vm.stopBroadcast();
@@ -133,8 +138,11 @@ contract DeployTokenScript is Script {
         console.log("1. Stake initial GRANT (at least 1 staker required before notifyReward)");
         console.log("2. Transfer staking rewards: token.transfer(staking, amount)");
         console.log("3. Start emissions: staking.notifyGrantReward(amount)");
-        console.log("4. Set up vesting contracts for team/investors");
-        console.log("5. Add liquidity to DEX");
-        console.log("6. Distribute publisher airdrop");
+        if (paymentsAddress == address(0)) {
+            console.log("4. CRITICAL: staking.setRewardNotifier(paymentsAddress)");
+        }
+        console.log("5. Set up vesting contracts for team/investors");
+        console.log("6. Add liquidity to DEX");
+        console.log("7. Distribute publisher airdrop");
     }
 }

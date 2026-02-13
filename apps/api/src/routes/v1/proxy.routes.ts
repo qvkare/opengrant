@@ -389,6 +389,13 @@ async function dynamicX402HandlerSimple(
     }
 
     // Create x402 middleware for this endpoint
+    // payTo must point to the Payments contract so USDC enters the settlement flow
+    const { config: appConfig } = await import("../../config/index.js");
+    if (!appConfig.contracts.payments) {
+      res.status(503).json({ error: "Payment settlement not configured" });
+      return;
+    }
+
     const x402Middleware = createX402Middleware({
       routes: {
         [`${req.method} ${req.path}`]: {
@@ -396,7 +403,7 @@ async function dynamicX402HandlerSimple(
           description: activeEndpoint.description || `${req.method} ${path}`,
         },
       },
-      payTo: publisher.walletAddress,
+      payTo: appConfig.contracts.payments,
     });
 
     // Execute x402 middleware
@@ -484,6 +491,13 @@ async function dynamicX402HandlerQualified(
     }
 
     // Create x402 middleware for this endpoint
+    // payTo must point to the Payments contract so USDC enters the settlement flow
+    const { config: appConfig } = await import("../../config/index.js");
+    if (!appConfig.contracts.payments) {
+      res.status(503).json({ error: "Payment settlement not configured" });
+      return;
+    }
+
     const x402Middleware = createX402Middleware({
       routes: {
         [`${req.method} ${req.path}`]: {
@@ -491,7 +505,7 @@ async function dynamicX402HandlerQualified(
           description: endpoint.description || `${req.method} ${path}`,
         },
       },
-      payTo: publisher.walletAddress,
+      payTo: appConfig.contracts.payments,
     });
 
     // Execute x402 middleware

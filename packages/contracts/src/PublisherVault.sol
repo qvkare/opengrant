@@ -29,11 +29,12 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     uint256 private _totalShares;
     uint256 private _totalReleased;
 
-    // Platform fee configuration
-    address public platformFeeReceiver;
-
     // Payments contract that can call receivePayment
     address public paymentsContract;
+
+    // Unreleased funds from failed _tryRelease during updatePayees
+    // These funds stay in the vault but are excluded from future distribution
+    uint256 private _unreleasedReserve;
 
     // ============================================
     // CONSTRUCTOR
@@ -47,7 +48,6 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
      * @param owner_ The vault owner (publisher)
      * @param payees_ Initial payees
      * @param shares_ Initial shares for each payee
-     * @param platformFeeReceiver_ Address to receive platform fees
      * @param paymentsContract_ OpenGrantPayments contract address
      */
     constructor(
@@ -57,7 +57,6 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
         address owner_,
         address[] memory payees_,
         uint256[] memory shares_,
-        address platformFeeReceiver_,
         address paymentsContract_
     ) ERC4626(asset_) ERC20(name_, symbol_) Ownable(owner_) {
         require(
@@ -65,17 +64,15 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
             "PublisherVault: payees and shares length mismatch"
         );
         require(payees_.length > 0, "PublisherVault: no payees");
-        require(
-            platformFeeReceiver_ != address(0),
-            "PublisherVault: invalid fee receiver"
-        );
+        require(paymentsContract_ != address(0), "PublisherVault: invalid payments contract");
 
-        platformFeeReceiver = platformFeeReceiver_;
         paymentsContract = paymentsContract_;
 
         for (uint256 i = 0; i < payees_.length; i++) {
             _addPayee(payees_[i], shares_[i]);
         }
+
+        require(_totalShares > 0, "PublisherVault: total shares must be positive");
     }
 
     // ============================================
@@ -147,12 +144,20 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
         );
         require(payees_.length > 0, "PublisherVault: no payees");
 
-        // Release all pending payments first
+        // Best-effort release all pending payments (non-reverting)
+        // Track failed releases to reserve those funds
+        uint256 failedTotal = 0;
         for (uint256 i = 0; i < _payees.length; i++) {
-            if (_releasable(_payees[i]) > 0) {
-                _release(_payees[i]);
+            uint256 pending = _releasable(_payees[i]);
+            bool success = _tryRelease(_payees[i]);
+            if (!success && pending > 0) {
+                failedTotal += pending;
             }
         }
+
+        // Reserve funds that couldn't be released (e.g., blacklisted payee)
+        // These are excluded from future distribution to prevent fund misattribution
+        _unreleasedReserve += failedTotal;
 
         // Clear existing payees and their released accounting
         for (uint256 i = 0; i < _payees.length; i++) {
@@ -216,7 +221,7 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
 
     function _releasable(address account) internal view returns (uint256) {
         uint256 totalReceived = IERC20(asset()).balanceOf(address(this)) +
-            _totalReleased;
+            _totalReleased - _unreleasedReserve;
         return _pendingPayment(account, totalReceived, _released[account]);
     }
 
@@ -232,6 +237,35 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
         IERC20(asset()).safeTransfer(account, payment);
 
         emit PaymentReleased(account, payment);
+    }
+
+    /**
+     * @notice Best-effort release — does not revert if transfer fails (e.g. USDC blacklist)
+     * @dev Uses low-level call to avoid griefing via reverting payee
+     */
+    function _tryRelease(address account) internal returns (bool) {
+        if (_shares[account] == 0) return true;
+        uint256 payment = _releasable(account);
+        if (payment == 0) return true;
+
+        // Optimistic accounting
+        _released[account] += payment;
+        _totalReleased += payment;
+
+        (bool success, bytes memory returndata) = asset().call(
+            abi.encodeCall(IERC20.transfer, (account, payment))
+        );
+
+        if (success && (returndata.length == 0 || abi.decode(returndata, (bool)))) {
+            emit PaymentReleased(account, payment);
+            return true;
+        }
+
+        // Transfer failed — revert accounting, funds stay in vault
+        _released[account] -= payment;
+        _totalReleased -= payment;
+        emit ReleaseFailed(account, payment);
+        return false;
     }
 
     function _addPayee(address account, uint256 shares_) private {
@@ -260,6 +294,30 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     // ============================================
 
     event PaymentsContractUpdated(address indexed oldContract, address indexed newContract);
+    event ReleaseFailed(address indexed account, uint256 amount);
+    event UnreleasedReserveClaimed(address indexed to, uint256 amount);
+
+    /**
+     * @notice Claim unreleased reserve (funds from failed releases during updatePayees)
+     * @param to Recipient address
+     * @param amount Amount to claim from the reserve
+     */
+    function claimUnreleasedReserve(address to, uint256 amount) external onlyOwner nonReentrant {
+        require(to != address(0), "PublisherVault: zero address");
+        require(amount > 0 && amount <= _unreleasedReserve, "PublisherVault: invalid amount");
+
+        _unreleasedReserve -= amount;
+        IERC20(asset()).safeTransfer(to, amount);
+
+        emit UnreleasedReserveClaimed(to, amount);
+    }
+
+    /**
+     * @notice Get current unreleased reserve amount
+     */
+    function unreleasedReserve() external view returns (uint256) {
+        return _unreleasedReserve;
+    }
 
     /**
      * @notice Update the payments contract address
@@ -298,4 +356,9 @@ contract PublisherVault is ERC4626, Ownable, ReentrancyGuard, IPublisherVault {
     function maxMint(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
     function maxWithdraw(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
     function maxRedeem(address) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+
+    function previewDeposit(uint256) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function previewMint(uint256) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function previewWithdraw(uint256) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
+    function previewRedeem(uint256) public pure override(ERC4626, IERC4626) returns (uint256) { return 0; }
 }

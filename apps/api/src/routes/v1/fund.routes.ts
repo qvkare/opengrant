@@ -7,6 +7,7 @@ import {
   githubRepos,
   fundDonations,
   dependencyAnalyses,
+  apis,
 } from "@opengrant/database";
 import { getTransactionReceipt } from "../../services/blockchain.service.js";
 import {
@@ -67,6 +68,13 @@ router.get("/repos", async (req: Request, res: Response) => {
 router.get("/repos/:owner/:name", async (req: Request, res: Response) => {
   try {
     const { owner, name } = req.params;
+
+    // Validate owner/name to prevent injection via crafted path params
+    const GITHUB_NAME_REGEX = /^[a-zA-Z0-9._-]{1,100}$/;
+    if (!GITHUB_NAME_REGEX.test(owner) || !GITHUB_NAME_REGEX.test(name)) {
+      return res.status(400).json({ error: "Invalid owner or repository name" });
+    }
+
     const repo = await getRepoByOwnerName(owner, name);
 
     if (!repo) {
@@ -89,9 +97,16 @@ router.get("/repos/:owner/:name", async (req: Request, res: Response) => {
       // Escrow not configured or not deployed
     }
 
+    // Get linked APIs for this repo
+    const linkedApis = await db.query.apis.findMany({
+      where: and(eq(apis.githubRepoId, repo.id), eq(apis.status, "active")),
+      columns: { id: true, slug: true, name: true, totalCalls: true },
+    });
+
     res.json({
       ...repo,
       onChain: onChainBalance,
+      linkedApis,
     });
   } catch (error) {
     console.error("Get repo error:", error);

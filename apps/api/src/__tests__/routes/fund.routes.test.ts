@@ -31,6 +31,7 @@ const { queryQueue, pushQueryResult, pushQueryError, mockDb, chainMethods } = vi
     dependencyAnalyses: { findFirst: vi.fn() },
     apiKeys: { findFirst: vi.fn() },
     consumers: { findFirst: vi.fn() },
+    apis: { findFirst: vi.fn(), findMany: vi.fn() },
   };
 
   return { queryQueue, pushQueryResult, pushQueryError, mockDb, chainMethods };
@@ -60,6 +61,7 @@ vi.mock("@opengrant/database", () => ({
   },
   consumers: { id: "id", walletAddress: "wallet_address" },
   apiKeys: { id: "id", keyHash: "key_hash", consumerId: "consumer_id" },
+  apis: { id: "id", githubRepoId: "github_repo_id", status: "status", slug: "slug", name: "name", totalCalls: "total_calls" },
 }));
 
 vi.mock("viem", async (importOriginal) => {
@@ -238,6 +240,8 @@ describe("Fund Routes", () => {
         repoHash: "0xabcdef",
       };
       vi.mocked(getRepoByOwnerName).mockResolvedValueOnce(mockRepo as any);
+      // linkedApis query
+      mockDb.query.apis.findMany.mockResolvedValueOnce([]);
 
       const res = await request(app).get("/v1/fund/repos/facebook/react");
       expect(res.status).toBe(200);
@@ -250,6 +254,12 @@ describe("Fund Routes", () => {
 
       const res = await request(app).get("/v1/fund/repos/unknown/repo");
       expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for invalid owner/name characters", async () => {
+      const res = await request(app).get("/v1/fund/repos/owner%00inject/name");
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Invalid owner or repository name");
     });
   });
 

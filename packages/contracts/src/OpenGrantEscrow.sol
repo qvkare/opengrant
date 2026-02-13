@@ -7,7 +7,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { IOpenGrantEscrow } from "./interfaces/IOpenGrantEscrow.sol";
 
 /**
@@ -16,10 +16,9 @@ import { IOpenGrantEscrow } from "./interfaces/IOpenGrantEscrow.sol";
  * @dev Immutable (not upgradeable) for maximum trust. User-initiated claims
  *      with backend ECDSA authorization to verify GitHub repo ownership.
  */
-contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard {
+contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
 
     // ============================================
     // CONSTANTS
@@ -27,6 +26,9 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
 
     uint256 public constant MIN_DONATION = 1e6;      // 1 USDC (6 decimals)
     uint256 public constant REFUND_DELAY = 365 days;
+
+    // EIP-712 typehash for structured claim signatures
+    bytes32 public constant CLAIM_TYPEHASH = keccak256("Claim(bytes32 repoHash,address wallet,uint256 nonce)");
 
     // ============================================
     // STATE
@@ -68,7 +70,7 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
         address _usdc,
         address _authorizedSigner,
         address _owner
-    ) Ownable(_owner) {
+    ) Ownable(_owner) EIP712("OpenGrantEscrow", "1") {
         require(_usdc != address(0), "Invalid USDC address");
         require(_authorizedSigner != address(0), "Invalid signer address");
 
@@ -150,12 +152,10 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
             "Wallet mismatch: repo already claimed by different wallet"
         );
 
-        // Verify backend signature
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(repoHash, wallet, nonce, block.chainid, address(this))
-        );
-        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
-        address recovered = ethSignedHash.recover(signature);
+        // Verify backend signature (EIP-712 structured data)
+        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, repoHash, wallet, nonce));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address recovered = ECDSA.recover(digest, signature);
         require(recovered == authorizedSigner, "Invalid signature");
 
         usedNonces[nonce] = true;
@@ -179,13 +179,14 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
      * @inheritdoc IOpenGrantEscrow
      */
     function refund(bytes32 repoHash) external nonReentrant {
+        require(repoClaimedWallet[repoHash] == address(0), "Repo already claimed");
+
         Donation storage donation = donations[repoHash][msg.sender];
         require(donation.amount > 0, "No donation found");
         require(
             block.timestamp >= donation.timestamp + REFUND_DELAY,
             "Refund delay not elapsed"
         );
-        require(repoClaimedWallet[repoHash] == address(0), "Repo already claimed");
 
         uint256 refundAmount = donation.amount;
 
@@ -211,9 +212,9 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
      * @inheritdoc IOpenGrantEscrow
      */
     function redistribute(bytes32 fromRepoHash, bytes32 toRepoHash) external nonReentrant {
+        require(repoClaimedWallet[fromRepoHash] == address(0), "Source repo already claimed");
         require(fromRepoHash != toRepoHash, "Cannot redistribute to same repo");
         require(toRepoHash != bytes32(0), "Invalid destination");
-        require(repoClaimedWallet[fromRepoHash] == address(0), "Source repo already claimed");
 
         Donation storage donation = donations[fromRepoHash][msg.sender];
         require(donation.amount > 0, "No donation found");
@@ -288,7 +289,14 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
      * @inheritdoc IOpenGrantEscrow
      */
     function getDonation(bytes32 repoHash, address donor) external view returns (Donation memory) {
-        return donations[repoHash][donor];
+        Donation memory d = donations[repoHash][donor];
+
+        // Once a repo is claimed, donation balances should be considered zeroed for view consistency
+        if (repoClaimedWallet[repoHash] != address(0)) {
+            d.amount = 0;
+        }
+
+        return d;
     }
 
     /**
@@ -322,9 +330,10 @@ contract OpenGrantEscrow is IOpenGrantEscrow, Ownable, Pausable, ReentrancyGuard
 
         bool isFirstDonation = existing.amount == 0;
         existing.amount += amount;
-        existing.timestamp = block.timestamp;
-        // Only set redistributeOnTimeout on first donation to prevent silent overwrite
+        // Only set timestamp and redistributeOnTimeout on first donation
+        // Top-ups should NOT reset the 365-day refund clock
         if (isFirstDonation) {
+            existing.timestamp = block.timestamp;
             existing.redistributeOnTimeout = redistributeOnTimeout;
         }
 

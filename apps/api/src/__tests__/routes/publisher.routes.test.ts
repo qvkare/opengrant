@@ -77,6 +77,9 @@ vi.mock("@opengrant/database", () => ({
     githubUsername: "github_username",
     avatarUrl: "avatar_url",
     vaultAddress: "vault_address",
+    githubId: "github_id",
+    githubVerified: "github_verified",
+    githubVerifiedAt: "github_verified_at",
     status: "status",
     verifiedAt: "verified_at",
     createdAt: "created_at",
@@ -86,6 +89,7 @@ vi.mock("@opengrant/database", () => ({
     id: "id",
     slug: "slug",
     publisherId: "publisher_id",
+    githubRepoId: "github_repo_id",
     status: "status",
     name: "name",
     description: "description",
@@ -142,6 +146,12 @@ vi.mock("@opengrant/database", () => ({
     requestTimestamp: "request_timestamp",
     responseTimeMs: "response_time_ms",
   },
+  githubRepos: {
+    id: "id",
+    githubId: "github_id",
+    owner: "owner",
+    name: "name",
+  },
 }));
 
 // Mock redis service
@@ -167,6 +177,14 @@ vi.mock("../../services/blockchain.service.js", () => ({
   getUSDCBalance: vi.fn().mockResolvedValue({ raw: 0n, formatted: "0" }),
   getETHBalance: vi.fn().mockResolvedValue({ raw: 0n, formatted: "0" }),
   getTransactionReceipt: vi.fn().mockResolvedValue({ status: "success", to: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" }),
+}));
+
+// Mock github service
+vi.mock("../../services/github.service.js", () => ({
+  getAuthenticatedUser: vi.fn(),
+  listUserRepos: vi.fn(),
+  getRepoByOwnerName: vi.fn(),
+  verifyRepoOwnership: vi.fn(),
 }));
 
 const app = createTestApp();
@@ -352,7 +370,14 @@ describe("Publisher Routes", () => {
         updatedAt: new Date("2024-01-02"),
       };
 
-      // Query 1: update.returning returns updated publisher
+      // Query 1: findFirst for githubUsername change check (githubVerified: false, so change is allowed)
+      pushQueryResult({
+        id: "pub-1",
+        githubVerified: false,
+        githubUsername: "olduser",
+      });
+
+      // Query 2: update.returning returns updated publisher
       pushQueryResult([updated]);
 
       const res = await request(app)
@@ -595,15 +620,7 @@ describe("Publisher Routes", () => {
     });
 
     it("should reject negative pricePerCall on endpoints", async () => {
-      const mockPublisher = { id: "pub-1" };
-
-      // Query 1: findFirst returns publisher
-      pushQueryResult(mockPublisher);
-      // Query 2: findFirst returns null (slug doesn't exist)
-      pushQueryResult(null);
-      // Query 3: insert.returning returns new API
-      pushQueryResult([{ id: "api-new", slug: "test-api" }]);
-
+      // Price validation now happens upfront before any DB writes
       const res = await request(app)
         .post("/v1/publisher/apis")
         .set("Authorization", `Bearer ${publisherToken}`)
@@ -622,6 +639,20 @@ describe("Publisher Routes", () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("Price per call cannot be negative");
+    });
+
+    it("should reject invalid slug format", async () => {
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .send({
+          name: "Test API",
+          slug: "INVALID_SLUG!",
+          baseUrl: "https://api.test.com",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Invalid slug format");
     });
 
     it("should return 401 without authentication", async () => {
@@ -919,6 +950,530 @@ describe("Publisher Routes", () => {
           destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
         });
       expect(res.status).toBe(401);
+    });
+  });
+
+  // ============================================
+  // POST /v1/publisher/verify-github
+  // ============================================
+
+  describe("POST /v1/publisher/verify-github", () => {
+    let mockGithubService: any;
+
+    beforeEach(async () => {
+      mockGithubService = await import("../../services/github.service.js");
+    });
+
+    it("should verify github successfully", async () => {
+      // Query 1: findFirst returns publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+        githubId: null,
+        githubUsername: null,
+        avatarUrl: null,
+      });
+
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345,
+        login: "testuser",
+        avatar_url: "https://avatar.url",
+        name: "Test",
+        bio: null,
+      });
+
+      // Query 2: findFirst for existing githubId check -> null
+      pushQueryResult(null);
+
+      // Query 3: update returning
+      pushQueryResult([{
+        id: "pub-1",
+        githubId: 12345,
+        githubUsername: "testuser",
+        githubVerified: true,
+        githubVerifiedAt: new Date(),
+      }]);
+
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.githubVerified).toBe(true);
+      expect(res.body.githubUsername).toBe("testuser");
+    });
+
+    it("should return 400 without X-GitHub-Token header", async () => {
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("X-GitHub-Token");
+    });
+
+    it("should return 400 for invalid github token format", async () => {
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_short");
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Invalid GitHub token format");
+    });
+
+    it("should return 401 for invalid github token", async () => {
+      // Query 1: findFirst returns publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+        githubId: null,
+      });
+
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_invalidtokenformat0123456789abcdefABCD");
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toContain("Invalid GitHub token");
+    });
+
+    it("should return idempotent response when already verified with same id", async () => {
+      // Query 1: findFirst returns already-verified publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+        githubUsername: "testuser",
+        githubVerifiedAt: new Date(),
+      });
+
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345,
+        login: "testuser",
+        avatar_url: "https://avatar.url",
+        name: "Test",
+        bio: null,
+      });
+
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx");
+
+      expect(res.status).toBe(200);
+      expect(res.body.githubVerified).toBe(true);
+    });
+
+    it("should return 409 when github id already taken by another publisher", async () => {
+      // Query 1: findFirst returns publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+        githubId: null,
+      });
+
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345,
+        login: "testuser",
+        avatar_url: "https://avatar.url",
+        name: "Test",
+        bio: null,
+      });
+
+      // Query 2: findFirst for existing githubId check -> another publisher
+      pushQueryResult({
+        id: "pub-other",
+        githubId: 12345,
+      });
+
+      const res = await request(app)
+        .post("/v1/publisher/verify-github")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx");
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("already linked");
+    });
+  });
+
+  // ============================================
+  // GET /v1/publisher/github-repos
+  // ============================================
+
+  describe("GET /v1/publisher/github-repos", () => {
+    let mockGithubService: any;
+
+    beforeEach(async () => {
+      mockGithubService = await import("../../services/github.service.js");
+    });
+
+    it("should return repos for verified publisher", async () => {
+      // Query 1: findFirst returns verified publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+      });
+
+      mockGithubService.listUserRepos.mockResolvedValueOnce([
+        { githubId: 100, owner: "testuser", name: "repo1", fullName: "testuser/repo1", description: "Test", language: "TS", stars: 50 },
+      ]);
+
+      const res = await request(app)
+        .get("/v1/publisher/github-repos")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx");
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].fullName).toBe("testuser/repo1");
+    });
+
+    it("should return 400 without X-GitHub-Token header", async () => {
+      const res = await request(app)
+        .get("/v1/publisher/github-repos")
+        .set("Authorization", `Bearer ${publisherToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it("should return 400 for invalid PAT format", async () => {
+      const res = await request(app)
+        .get("/v1/publisher/github-repos")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_short");
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Invalid GitHub token format");
+    });
+
+    it("should return 403 for unverified publisher", async () => {
+      // Query 1: findFirst returns unverified publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+      });
+
+      const res = await request(app)
+        .get("/v1/publisher/github-repos")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx");
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("verification required");
+    });
+  });
+
+  // ============================================
+  // POST /v1/publisher/apis + githubRepo
+  // ============================================
+
+  describe("POST /v1/publisher/apis with githubRepo", () => {
+    let mockGithubService: any;
+
+    beforeEach(async () => {
+      mockGithubService = await import("../../services/github.service.js");
+    });
+
+    it("should create API with github repo link", async () => {
+      // Query 1: findFirst publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      // PAT identity check
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345,
+        login: "testuser",
+        avatar_url: "https://avatar.url",
+        name: "Test",
+        bio: null,
+      });
+
+      // GitHub repo lookup
+      mockGithubService.getRepoByOwnerName.mockResolvedValueOnce({
+        id: "repo-uuid-1",
+        githubId: 100,
+        owner: "testuser",
+        name: "my-api",
+      });
+
+      // Verify ownership
+      mockGithubService.verifyRepoOwnership.mockResolvedValueOnce(true);
+
+      // Query 3: insert API returning
+      pushQueryResult([{
+        id: "api-1",
+        name: "Test API",
+        slug: "test-api",
+        githubRepoId: "repo-uuid-1",
+        status: "draft",
+      }]);
+
+      // Query 4: findFirst for created API with endpoints
+      pushQueryResult({
+        id: "api-1",
+        name: "Test API",
+        slug: "test-api",
+        githubRepoId: "repo-uuid-1",
+        status: "draft",
+        endpoints: [],
+      });
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/my-api",
+        });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("should return 403 when unverified publisher tries to link repo", async () => {
+      // Query 1: findFirst publisher (unverified)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/my-api",
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("GitHub verification required");
+    });
+
+    it("should return 403 when not admin on repo", async () => {
+      // Query 1: findFirst publisher (verified)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      // PAT identity check
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345, login: "testuser", avatar_url: "", name: "Test", bio: null,
+      });
+
+      mockGithubService.getRepoByOwnerName.mockResolvedValueOnce({
+        id: "repo-uuid-1",
+        githubId: 100,
+      });
+      mockGithubService.verifyRepoOwnership.mockResolvedValueOnce(false);
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/my-api",
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("Admin access required");
+    });
+
+    it("should return 404 when repo not found", async () => {
+      // Query 1: findFirst publisher (verified)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      // PAT identity check
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 12345, login: "testuser", avatar_url: "", name: "Test", bio: null,
+      });
+
+      mockGithubService.getRepoByOwnerName.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/nonexistent",
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain("repository not found");
+    });
+
+    it("should return 400 for invalid githubRepo format", async () => {
+      // Query 1: findFirst publisher (verified)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "invalid-format",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Invalid githubRepo format");
+    });
+
+    it("should create API without githubRepo (existing behavior)", async () => {
+      // Query 1: findFirst publisher
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: false,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      // Query 3: insert returning
+      pushQueryResult([{
+        id: "api-1",
+        name: "Test API",
+        slug: "test-api",
+        status: "draft",
+      }]);
+
+      // Query 4: findFirst for created API
+      pushQueryResult({
+        id: "api-1",
+        name: "Test API",
+        slug: "test-api",
+        status: "draft",
+        endpoints: [],
+      });
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+        });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("should return 403 when PAT identity does not match publisher", async () => {
+      // Query 1: findFirst publisher (verified with githubId 12345)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+        githubId: 12345,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      // PAT identity check returns DIFFERENT githubId
+      mockGithubService.getAuthenticatedUser.mockResolvedValueOnce({
+        id: 99999,
+        login: "someoneelse",
+        avatar_url: "",
+        name: "Someone",
+        bio: null,
+      });
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .set("X-GitHub-Token", "ghp_testauthtoken0123456789abcdefABCDEFxx")
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/my-api",
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("does not match verified identity");
+    });
+
+    it("should return 400 when githubRepo requires missing X-GitHub-Token", async () => {
+      // Query 1: findFirst publisher (verified)
+      pushQueryResult({
+        id: "pub-1",
+        walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
+        githubVerified: true,
+      });
+
+      // Query 2: findFirst existing slug check -> null
+      pushQueryResult(null);
+
+      const res = await request(app)
+        .post("/v1/publisher/apis")
+        .set("Authorization", `Bearer ${publisherToken}`)
+        .send({
+          name: "Test API",
+          slug: "test-api",
+          baseUrl: "https://api.test.com",
+          githubRepo: "testuser/my-api",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("X-GitHub-Token");
     });
   });
 });

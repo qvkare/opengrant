@@ -160,27 +160,27 @@ describe("Payment Service", () => {
   });
 
   describe("calculatePlatformFee", () => {
-    it("should calculate 10% fee correctly", () => {
-      // 10% of 1,000,000 = 100,000
+    it("should calculate 2.5% fee correctly", () => {
+      // 2.5% of 1,000,000 = 25,000
       const fee = calculatePlatformFee(BigInt("1000000"));
-      expect(fee).toBe(BigInt("100000"));
+      expect(fee).toBe(BigInt("25000"));
     });
 
     it("should handle small amounts", () => {
-      // 10% of 100 = 10
+      // 2.5% of 100 = 2
       const fee = calculatePlatformFee(BigInt("100"));
-      expect(fee).toBe(BigInt("10"));
+      expect(fee).toBe(BigInt("2"));
     });
 
-    it("should round down for amounts not divisible by 10", () => {
-      // 10% of 999 = 99.9 -> 99
+    it("should round down for amounts not evenly divisible", () => {
+      // 2.5% of 999 = 24.975 -> 24
       const fee = calculatePlatformFee(BigInt("999"));
-      expect(fee).toBe(BigInt("99"));
+      expect(fee).toBe(BigInt("24"));
     });
 
     it("should return 0 for very small amounts", () => {
-      // 10% of 9 = 0.9 -> 0
-      const fee = calculatePlatformFee(BigInt("9"));
+      // 2.5% of 39 = 0.975 -> 0
+      const fee = calculatePlatformFee(BigInt("39"));
       expect(fee).toBe(BigInt("0"));
     });
 
@@ -190,23 +190,23 @@ describe("Payment Service", () => {
     });
 
     it("should handle large amounts", () => {
-      // 10% of 1,000,000,000,000 (1M USDC) = 100,000,000,000
+      // 2.5% of 1,000,000,000,000 (1M USDC) = 25,000,000,000
       const fee = calculatePlatformFee(BigInt("1000000000000"));
-      expect(fee).toBe(BigInt("100000000000"));
+      expect(fee).toBe(BigInt("25000000000"));
     });
   });
 
   describe("calculateNetAmount", () => {
-    it("should calculate net amount after 10% fee", () => {
-      // 1,000,000 - 10% = 900,000
+    it("should calculate net amount after 2.5% fee", () => {
+      // 1,000,000 - 2.5% = 975,000
       const net = calculateNetAmount(BigInt("1000000"));
-      expect(net).toBe(BigInt("900000"));
+      expect(net).toBe(BigInt("975000"));
     });
 
     it("should handle small amounts", () => {
-      // 100 - 10% = 90
+      // 100 - 2.5% = 98 (fee=2)
       const net = calculateNetAmount(BigInt("100"));
-      expect(net).toBe(BigInt("90"));
+      expect(net).toBe(BigInt("98"));
     });
 
     it("should handle very small amounts correctly", () => {

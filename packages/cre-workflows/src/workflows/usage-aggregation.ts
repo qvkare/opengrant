@@ -22,6 +22,20 @@ const OPENGRANT_API_URL = process.env.OPENGRANT_API_URL || "https://api.opengran
 const OPENGRANT_PAYMENTS_ADDRESS = process.env.OPENGRANT_PAYMENTS_ADDRESS || "";
 const MIN_SETTLEMENT_AMOUNT = BigInt("100000"); // 0.1 USDC minimum
 
+/**
+ * Convert a UUID string to a bytes32 value for on-chain settlement.
+ * If the record has an onChainApiId (set when publisher registers on-chain),
+ * use it directly. Otherwise, use the UUID as a hex-padded bytes32.
+ */
+function apiIdToBytes32(apiId: string, onChainApiId?: string): `0x${string}` {
+  if (onChainApiId && onChainApiId.startsWith("0x")) {
+    return onChainApiId as `0x${string}`;
+  }
+  // Fallback: strip hyphens from UUID and zero-pad to 32 bytes
+  const hex = apiId.replace(/-/g, "");
+  return `0x${hex.padEnd(64, "0")}` as `0x${string}`;
+}
+
 // OpenGrantPayments ABI for batchDistribute
 const BATCH_DISTRIBUTE_ABI = [
   {
@@ -109,7 +123,8 @@ async function executeBatchSettlement(
     }) => Promise<{ txHash: string }>;
   }
 ): Promise<string> {
-  const apiIds = aggregated.map((agg) => agg.apiId);
+  // Convert UUID-based API IDs to bytes32 for on-chain call
+  const apiIds = aggregated.map((agg) => apiIdToBytes32(agg.apiId));
   const amounts = aggregated.map((agg) => BigInt(agg.totalAmount));
 
   const result = await evmClient.write({

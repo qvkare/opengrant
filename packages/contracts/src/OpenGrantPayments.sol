@@ -49,11 +49,28 @@ contract OpenGrantPayments is
     uint256 public platformFeeBPS;
     uint256 public constant MAX_FEE_BPS = 1000; // 10% max
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant MAX_BATCH_SIZE = 100;
 
     // Payment tracking
     mapping(bytes32 => PaymentRecord) public paymentRecords;
     mapping(address => uint256) public publisherPendingEarnings;
     mapping(bytes32 => bool) public processedX402Hashes;
+
+    // Global pending earnings tracker (sum of all publisherPendingEarnings)
+    // Used to verify contract USDC balance covers all recorded payments
+    uint256 public totalPendingEarnings;
+
+    // Per-publisher cumulative accounting (audit trail)
+    mapping(address => uint256) public publisherTotalDeposited;    // USDC deposited via recordPaymentWithDeposit
+    mapping(address => uint256) public publisherTotalDistributed;  // USDC distributed to vaults
+
+    // x402TxHash → recorded amount (for off-chain consistency verification)
+    mapping(bytes32 => uint256) public processedX402Amounts;
+
+    // Legacy recordPayment disabled by default — use recordPaymentWithDeposit for atomic deposits.
+    // When disabled, only recordPaymentWithDeposit (which atomically pulls USDC from caller) is allowed,
+    // eliminating per-publisher cross-subsidy risk. Admin can re-enable for backward compatibility.
+    bool public legacyRecordPaymentEnabled;
 
     // Statistics
     uint256 public totalPaymentsProcessed;
@@ -112,6 +129,10 @@ contract OpenGrantPayments is
 
     /**
      * @inheritdoc IOpenGrantPayments
+     * @dev DEPRECATED: Use recordPaymentWithDeposit for atomic per-publisher deposits.
+     *      This function is disabled by default. Enable via setLegacyRecordPayment(true).
+     *      When enabled, USDC must already be in the contract. Global balance proof is checked
+     *      but per-publisher solvency is NOT enforced — cross-subsidy risk exists.
      */
     function recordPayment(
         bytes32 apiId,
@@ -119,6 +140,10 @@ contract OpenGrantPayments is
         uint256 amount,
         bytes32 x402TxHash
     ) external override whenNotPaused onlyAuthorized nonReentrant {
+        require(
+            legacyRecordPaymentEnabled,
+            "OpenGrantPayments: deprecated, use recordPaymentWithDeposit"
+        );
         require(amount > 0, "OpenGrantPayments: amount is zero");
         require(consumer != address(0), "OpenGrantPayments: invalid consumer");
         require(
@@ -129,8 +154,9 @@ contract OpenGrantPayments is
         address publisher = registry.getAPIPublisher(apiId);
         require(publisher != address(0), "OpenGrantPayments: API not found");
 
-        // Mark as processed
+        // Mark as processed with amount binding
         processedX402Hashes[x402TxHash] = true;
+        processedX402Amounts[x402TxHash] = amount;
 
         // Create payment record
         paymentRecords[x402TxHash] = PaymentRecord({
@@ -144,12 +170,94 @@ contract OpenGrantPayments is
 
         // Add to pending earnings
         publisherPendingEarnings[publisher] += amount;
+        totalPendingEarnings += amount;
         totalPaymentsProcessed++;
+
+        // Balance proof: contract must hold enough USDC to cover all pending earnings
+        require(
+            usdc.balanceOf(address(this)) >= totalPendingEarnings,
+            "OpenGrantPayments: recorded amount exceeds contract balance"
+        );
 
         // Update registry stats
         registry.incrementAPIStats(apiId, 1, amount);
 
         emit PaymentReceived(apiId, consumer, amount, x402TxHash);
+        emit X402AmountBound(x402TxHash, amount);
+    }
+
+    /**
+     * @notice Emitted when an x402 transaction hash is bound to a specific amount
+     * @dev Provides on-chain observability for hash→amount mapping, enabling
+     *      off-chain systems to verify payment consistency without reading storage.
+     */
+    event X402AmountBound(bytes32 indexed x402TxHash, uint256 amount);
+
+    /**
+     * @notice Record a payment with atomic USDC deposit (preferred over recordPayment)
+     * @dev Caller must have approved this contract for `amount` USDC.
+     *      Atomically pulls USDC from msg.sender and records the payment,
+     *      providing per-publisher deposit proof. This eliminates cross-subsidy
+     *      risk because the deposited amount is cryptographically tied to the publisher.
+     * @param apiId The API that was called
+     * @param consumer The wallet that made the payment
+     * @param amount The payment amount in USDC (6 decimals)
+     * @param x402TxHash The x402 transaction hash for deduplication
+     */
+    event PaymentDepositedAndRecorded(
+        bytes32 indexed apiId,
+        address indexed consumer,
+        uint256 amount,
+        bytes32 x402TxHash,
+        address indexed depositor
+    );
+
+    function recordPaymentWithDeposit(
+        bytes32 apiId,
+        address consumer,
+        uint256 amount,
+        bytes32 x402TxHash
+    ) external whenNotPaused onlyAuthorized nonReentrant {
+        require(amount > 0, "OpenGrantPayments: amount is zero");
+        require(consumer != address(0), "OpenGrantPayments: invalid consumer");
+        require(
+            !processedX402Hashes[x402TxHash],
+            "OpenGrantPayments: payment already processed"
+        );
+
+        address publisher = registry.getAPIPublisher(apiId);
+        require(publisher != address(0), "OpenGrantPayments: API not found");
+
+        // Atomically pull USDC from caller — ties deposit to this specific record
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Mark as processed with amount binding
+        processedX402Hashes[x402TxHash] = true;
+        processedX402Amounts[x402TxHash] = amount;
+
+        // Create payment record
+        paymentRecords[x402TxHash] = PaymentRecord({
+            apiId: apiId,
+            consumer: consumer,
+            amount: amount,
+            x402TxHash: x402TxHash,
+            timestamp: block.timestamp,
+            settled: false
+        });
+
+        // Per-publisher deposit tracking (atomic proof)
+        publisherTotalDeposited[publisher] += amount;
+
+        // Add to pending earnings
+        publisherPendingEarnings[publisher] += amount;
+        totalPendingEarnings += amount;
+        totalPaymentsProcessed++;
+
+        // Update registry stats
+        registry.incrementAPIStats(apiId, 1, amount);
+
+        emit PaymentDepositedAndRecorded(apiId, consumer, amount, x402TxHash, msg.sender);
+        emit X402AmountBound(x402TxHash, amount);
     }
 
     /**
@@ -172,6 +280,10 @@ contract OpenGrantPayments is
         require(
             apiIds.length == amounts.length,
             "OpenGrantPayments: arrays length mismatch"
+        );
+        require(
+            apiIds.length <= MAX_BATCH_SIZE,
+            "OpenGrantPayments: batch too large"
         );
 
         uint256 totalPlatformFee = 0;
@@ -198,6 +310,8 @@ contract OpenGrantPayments is
         bytes32 apiId,
         uint256 amount
     ) internal returns (uint256 platformFee) {
+        require(amount > 0, "OpenGrantPayments: distribution amount is zero");
+
         address publisher = registry.getAPIPublisher(apiId);
         require(publisher != address(0), "OpenGrantPayments: API not found");
 
@@ -209,16 +323,26 @@ contract OpenGrantPayments is
             "OpenGrantPayments: insufficient pending earnings"
         );
 
+        // Verify contract holds enough USDC before attempting transfers
+        uint256 contractBalance = usdc.balanceOf(address(this));
+        require(contractBalance >= amount, "OpenGrantPayments: insufficient USDC balance");
+
         // Calculate fees — use oracle if set (publisher staking discount), otherwise default
         uint256 effectiveFeeBPS = platformFeeBPS;
         if (address(feeDiscountOracle) != address(0)) {
             effectiveFeeBPS = feeDiscountOracle.getEffectiveFeeBPS(publisher);
+            // Defense-in-depth: cap oracle return to MAX_FEE_BPS regardless of oracle implementation
+            if (effectiveFeeBPS > MAX_FEE_BPS) {
+                effectiveFeeBPS = MAX_FEE_BPS;
+            }
         }
         platformFee = (amount * effectiveFeeBPS) / BPS_DENOMINATOR;
         uint256 netAmount = amount - platformFee;
 
         // Update state
         publisherPendingEarnings[publisher] -= amount;
+        totalPendingEarnings -= amount;
+        publisherTotalDistributed[publisher] += amount;
         totalPlatformFeesCollected += platformFee;
 
         // Split platform fee: treasury + staker reward pool
@@ -264,10 +388,15 @@ contract OpenGrantPayments is
     function markPaymentsSettled(
         bytes32[] calldata txHashes
     ) external override onlyAuthorized {
+        require(txHashes.length <= MAX_BATCH_SIZE, "OpenGrantPayments: batch too large");
         for (uint256 i = 0; i < txHashes.length; i++) {
             require(
                 paymentRecords[txHashes[i]].amount > 0,
                 "OpenGrantPayments: unknown payment"
+            );
+            require(
+                !paymentRecords[txHashes[i]].settled,
+                "OpenGrantPayments: payment already settled"
             );
             paymentRecords[txHashes[i]].settled = true;
         }
@@ -286,6 +415,31 @@ contract OpenGrantPayments is
         address publisher
     ) external view override returns (uint256) {
         return publisherPendingEarnings[publisher];
+    }
+
+    /**
+     * @notice Get total pending earnings across all publishers
+     * @return Total pending earnings
+     */
+    function getTotalPendingEarnings() external view returns (uint256) {
+        return totalPendingEarnings;
+    }
+
+    /**
+     * @notice Get full accounting for a publisher
+     * @param publisher The publisher address
+     * @return deposited Total USDC atomically deposited via recordPaymentWithDeposit
+     * @return pending Current pending (undistributed) earnings
+     * @return distributed Total USDC distributed to vault
+     */
+    function getPublisherAccounting(
+        address publisher
+    ) external view returns (uint256 deposited, uint256 pending, uint256 distributed) {
+        return (
+            publisherTotalDeposited[publisher],
+            publisherPendingEarnings[publisher],
+            publisherTotalDistributed[publisher]
+        );
     }
 
     /**
@@ -337,12 +491,18 @@ contract OpenGrantPayments is
      * @param caller Address to authorize
      * @param authorized Whether to authorize or revoke
      */
+    event AuthorizedCallerUpdated(address indexed caller, bool authorized);
+
     function setAuthorizedCaller(
         address caller,
         bool authorized
     ) external onlyOwner {
+        require(caller != address(0), "OpenGrantPayments: invalid caller address");
         authorizedCallers[caller] = authorized;
+        emit AuthorizedCallerUpdated(caller, authorized);
     }
+
+    event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     /**
      * @notice Update registry address
@@ -350,7 +510,9 @@ contract OpenGrantPayments is
      */
     function setRegistry(address _registry) external onlyOwner {
         require(_registry != address(0), "OpenGrantPayments: invalid registry");
+        address oldRegistry = address(registry);
         registry = IRegistry(_registry);
+        emit RegistryUpdated(oldRegistry, _registry);
     }
 
     /**
@@ -376,6 +538,44 @@ contract OpenGrantPayments is
     function setStakerSplitBPS(uint256 _splitBPS) external onlyOwner {
         require(_splitBPS <= MAX_STAKER_SPLIT_BPS, "OpenGrantPayments: split too high");
         stakerSplitBPS = _splitBPS;
+    }
+
+    /**
+     * @notice Enable or disable legacy recordPayment (disabled by default)
+     * @dev When disabled, only recordPaymentWithDeposit (atomic) is allowed.
+     *      This eliminates per-publisher cross-subsidy risk.
+     * @param enabled True to enable legacy path, false to disable
+     */
+    event LegacyRecordPaymentToggled(bool enabled);
+
+    function setLegacyRecordPayment(bool enabled) external onlyOwner {
+        legacyRecordPaymentEnabled = enabled;
+        emit LegacyRecordPaymentToggled(enabled);
+    }
+
+    /**
+     * @notice Write off incorrectly recorded pending earnings
+     * @dev Used to correct inflated records that would otherwise lock distributions.
+     *      Only callable by owner as an administrative correction.
+     * @param publisher The publisher whose pending earnings to adjust
+     * @param amount The amount to write off
+     */
+    event PendingEarningsWrittenOff(address indexed publisher, uint256 amount, uint256 remaining);
+
+    function writeOffPendingEarnings(
+        address publisher,
+        uint256 amount
+    ) external onlyOwner {
+        require(amount > 0, "OpenGrantPayments: amount is zero");
+        require(
+            publisherPendingEarnings[publisher] >= amount,
+            "OpenGrantPayments: write-off exceeds pending"
+        );
+
+        publisherPendingEarnings[publisher] -= amount;
+        totalPendingEarnings -= amount;
+
+        emit PendingEarningsWrittenOff(publisher, amount, publisherPendingEarnings[publisher]);
     }
 
     /**

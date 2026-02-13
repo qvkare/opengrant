@@ -360,10 +360,40 @@ contract GRANTStakingTest is Test {
         staking.notifyGrantReward(1000 ether);
     }
 
-    function test_RevertNotifyUSDCReward_NotOwner() public {
+    function test_RevertNotifyUSDCReward_NotAuthorized() public {
+        vm.prank(alice);
+        vm.expectRevert("GRANTStaking: caller not authorized");
+        staking.notifyUSDCReward(1000e6);
+    }
+
+    function test_SetRewardNotifier() public {
+        address notifier = address(0x999);
+        vm.prank(owner);
+        staking.setRewardNotifier(notifier);
+        assertEq(staking.rewardNotifier(), notifier);
+    }
+
+    function test_RewardNotifier_CanNotifyUSDCReward() public {
+        address notifier = address(0x999);
+        vm.prank(owner);
+        staking.setRewardNotifier(notifier);
+
+        // Stake first
+        vm.prank(alice);
+        staking.stake(STAKE_AMOUNT);
+
+        // Notifier can call notifyUSDCReward
+        usdc.mint(address(staking), USDC_REWARD);
+        vm.prank(notifier);
+        staking.notifyUSDCReward(USDC_REWARD);
+
+        assertGt(staking.usdcRewardRate(), 0);
+    }
+
+    function test_RevertSetRewardNotifier_NotOwner() public {
         vm.prank(alice);
         vm.expectRevert();
-        staking.notifyUSDCReward(1000e6);
+        staking.setRewardNotifier(address(0x999));
     }
 
     function test_Pause() public {
@@ -479,7 +509,7 @@ contract GRANTStakingTest is Test {
         assertEq(staking.earnedGrant(alice), earned);
     }
 
-    function test_CooldownDoesNotAffectRewards() public {
+    function test_CooldownStopsRewards() public {
         // Alice stakes first
         vm.prank(alice);
         staking.stake(STAKE_AMOUNT);
@@ -497,17 +527,16 @@ contract GRANTStakingTest is Test {
         uint256 earnedBeforeCooldown = staking.earnedGrant(alice);
         assertGt(earnedBeforeCooldown, 0);
 
-        // Request withdrawal but rewards should continue accruing
+        // Request withdrawal — rewards stop accruing for cooldown tokens
         vm.prank(alice);
         staking.requestWithdraw(STAKE_AMOUNT);
 
         // Advance to end of reward period
         vm.warp(startTime + 30 days);
 
-        // Should have earned for full 30 days (cooldown doesn't stop rewards)
+        // Rewards frozen at the moment cooldown started (no more accrual)
         uint256 earned = staking.earnedGrant(alice);
-        assertGt(earned, earnedBeforeCooldown); // More rewards accrued during cooldown
-        assertApproxEqRel(earned, GRANT_REWARD, 0.01e18);
+        assertEq(earned, earnedBeforeCooldown);
     }
 
     // ============================================

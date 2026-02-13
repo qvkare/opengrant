@@ -20,7 +20,6 @@ contract OpenGrantFactory is Ownable {
     // Platform contracts
     address public registry;
     address public paymentsContract;
-    address public platformFeeReceiver;
 
     // Deployed vaults
     mapping(address => address) public publisherVaults;
@@ -39,7 +38,6 @@ contract OpenGrantFactory is Ownable {
 
     event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event PaymentsContractUpdated(address indexed oldContract, address indexed newContract);
-    event PlatformFeeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
     // ============================================
     // CONSTRUCTOR
@@ -47,14 +45,11 @@ contract OpenGrantFactory is Ownable {
 
     constructor(
         address _usdc,
-        address _platformFeeReceiver,
         address _owner
     ) Ownable(_owner) {
         require(_usdc != address(0), "OpenGrantFactory: invalid USDC");
-        require(_platformFeeReceiver != address(0), "OpenGrantFactory: invalid fee receiver");
 
         usdc = IERC20(_usdc);
-        platformFeeReceiver = _platformFeeReceiver;
     }
 
     // ============================================
@@ -94,7 +89,6 @@ contract OpenGrantFactory is Ownable {
                 msg.sender,
                 payees,
                 shares,
-                platformFeeReceiver,
                 paymentsContract
             )
         );
@@ -159,17 +153,6 @@ contract OpenGrantFactory is Ownable {
         address old = paymentsContract;
         paymentsContract = _paymentsContract;
         emit PaymentsContractUpdated(old, _paymentsContract);
-    }
-
-    /**
-     * @notice Set platform fee receiver
-     * @param _platformFeeReceiver New fee receiver address
-     */
-    function setPlatformFeeReceiver(address _platformFeeReceiver) external onlyOwner {
-        require(_platformFeeReceiver != address(0), "OpenGrantFactory: invalid receiver");
-        address old = platformFeeReceiver;
-        platformFeeReceiver = _platformFeeReceiver;
-        emit PlatformFeeReceiverUpdated(old, _platformFeeReceiver);
     }
 
     // ============================================

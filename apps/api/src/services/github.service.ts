@@ -13,6 +13,24 @@ function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Respo
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeout));
 }
 
+export interface GitHubUser {
+  id: number;
+  login: string;
+  avatar_url: string;
+  name: string | null;
+  bio: string | null;
+}
+
+export interface GitHubUserRepo {
+  githubId: number;
+  owner: string;
+  name: string;
+  fullName: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+}
+
 interface GitHubApiRepo {
   id: number;
   owner: { login: string; avatar_url: string };
@@ -329,6 +347,74 @@ export async function resolveCrateToGithub(
     return { owner, repo, githubId: ghData.id };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Get the authenticated GitHub user from a personal access token
+ */
+export async function getAuthenticatedUser(
+  githubAccessToken: string
+): Promise<GitHubUser | null> {
+  try {
+    const res = await fetchWithTimeout(`${GITHUB_API}/user`, {
+      headers: {
+        Authorization: `Bearer ${githubAccessToken}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "OpenGrant-API",
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    return {
+      id: data.id,
+      login: data.login,
+      avatar_url: data.avatar_url,
+      name: data.name,
+      bio: data.bio,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * List repos where the authenticated user has admin access
+ */
+export async function listUserRepos(
+  githubAccessToken: string,
+  page: number = 1
+): Promise<GitHubUserRepo[]> {
+  try {
+    const res = await fetchWithTimeout(
+      `${GITHUB_API}/user/repos?type=owner&sort=updated&per_page=100&page=${page}`,
+      {
+        headers: {
+          Authorization: `Bearer ${githubAccessToken}`,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "OpenGrant-API",
+        },
+      }
+    );
+
+    if (!res.ok) return [];
+
+    const repos: any[] = await res.json();
+    return repos
+      .filter((r) => r.permissions?.admin === true)
+      .map((r) => ({
+        githubId: r.id,
+        owner: r.owner.login,
+        name: r.name,
+        fullName: r.full_name,
+        description: r.description,
+        language: r.language,
+        stars: r.stargazers_count,
+      }));
+  } catch {
+    return [];
   }
 }
 

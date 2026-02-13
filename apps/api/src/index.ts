@@ -43,6 +43,7 @@ app.use(
       "Content-Type",
       "Authorization",
       "X-API-Key",
+      "X-GitHub-Token",
       "X-402-Payment",
       "X-402-Version",
       "X-402-Payment-Token",

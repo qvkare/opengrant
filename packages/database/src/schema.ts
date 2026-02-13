@@ -109,6 +109,11 @@ export const publishers = pgTable(
     vaultAddress: varchar("vault_address", { length: 42 }),
     registryTxHash: varchar("registry_tx_hash", { length: 66 }),
 
+    // GitHub verification
+    githubId: integer("github_id").unique(),
+    githubVerified: boolean("github_verified").default(false).notNull(),
+    githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
+
     // Status
     status: publisherStatusEnum("status").default("pending").notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
@@ -129,6 +134,7 @@ export const publishers = pgTable(
   (table) => [
     // walletAddress already has a unique constraint which creates an index
     index("idx_publishers_status").on(table.status),
+    uniqueIndex("idx_publishers_github_id").on(table.githubId),
   ]
 );
 
@@ -147,6 +153,11 @@ export const apis = pgTable(
     // Identification
     slug: varchar("slug", { length: 100 }).notNull(),
     onchainId: varchar("onchain_id", { length: 66 }).unique(),
+    // On-chain bytes32 API ID (set when publisher registers API on-chain via Registry)
+    onChainApiId: varchar("on_chain_api_id", { length: 66 }),
+
+    // GitHub repo link
+    githubRepoId: uuid("github_repo_id").references(() => githubRepos.id, { onDelete: "set null" }),
 
     // Metadata
     name: varchar("name", { length: 255 }).notNull(),
@@ -181,6 +192,7 @@ export const apis = pgTable(
     index("idx_apis_category").on(table.category),
     index("idx_apis_slug").on(table.slug),
     uniqueIndex("idx_apis_publisher_slug").on(table.publisherId, table.slug),
+    index("idx_apis_github_repo").on(table.githubRepoId),
   ]
 );
 
@@ -580,6 +592,10 @@ export const apisRelations = relations(apis, ({ one, many }) => ({
     fields: [apis.publisherId],
     references: [publishers.id],
   }),
+  githubRepo: one(githubRepos, {
+    fields: [apis.githubRepoId],
+    references: [githubRepos.id],
+  }),
   endpoints: many(endpoints),
   payments: many(payments),
 }));
@@ -622,6 +638,7 @@ export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
 
 export const githubReposRelations = relations(githubRepos, ({ many }) => ({
   donations: many(fundDonations),
+  apis: many(apis),
 }));
 
 export const fundDonationsRelations = relations(fundDonations, ({ one }) => ({

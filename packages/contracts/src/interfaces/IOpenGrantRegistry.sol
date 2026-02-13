@@ -88,6 +88,8 @@ interface IOpenGrantRegistry {
 
     function updatePublisher(string calldata metadataUri) external;
 
+    function updatePublisherVault(address newVault) external;
+
     function deactivatePublisher() external;
 
     function getPublisher(
