@@ -87,7 +87,7 @@ const checkApisHealth = (
   const results: HealthCheck[] = [];
 
   for (const api of apis) {
-    const startMs = performance.now();
+    const startMs = Date.now();
     try {
       const resp = sendRequester
         .sendRequest({
@@ -97,7 +97,7 @@ const checkApisHealth = (
         })
         .result();
 
-      const elapsed = Math.round(performance.now() - startMs);
+      const elapsed = Date.now() - startMs;
       let status: "healthy" | "degraded" | "down";
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
@@ -115,7 +115,7 @@ const checkApisHealth = (
         statusCode: resp.statusCode,
       });
     } catch (err) {
-      const elapsed = Math.round(performance.now() - startMs);
+      const elapsed = Date.now() - startMs;
       results.push({
         apiId: api.id,
         status: "down",
