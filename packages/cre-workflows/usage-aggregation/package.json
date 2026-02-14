@@ -1,12 +1,15 @@
 {
   "name": "usage-aggregation",
   "version": "0.1.0",
+  "main": "dist/main.js",
   "private": true,
   "scripts": {
-    "cre-compile": "bun build src/index.ts --target=wasi --compile --outfile tmp.wasm"
+    "postinstall": "bun x cre-setup"
   },
   "dependencies": {
-    "@chainlink/cre-sdk": "^1.0.9",
-    "@chainlink/cre-sdk-javy-plugin": "^1.0.9"
+    "@chainlink/cre-sdk": "^1.0.9"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21"
   }
 }
