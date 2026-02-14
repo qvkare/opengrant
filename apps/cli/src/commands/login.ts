@@ -1,7 +1,8 @@
 import chalk from "chalk";
 import ora from "ora";
 import inquirer from "inquirer";
-import { createWalletClient, http, privateKeyToAccount } from "viem";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { config, setCredentials, getWebUrl, getApiUrl, isAuthenticated, getWalletAddress } from "../config.js";
 import { randomBytes } from "crypto";
@@ -55,11 +56,11 @@ async function pollForAuth(sessionId: string): Promise<{ token: string; walletAd
       const response = await fetch(`${apiUrl}/auth/cli/poll?session=${sessionId}`);
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { authenticated?: boolean; token?: string; walletAddress?: string };
         if (data.authenticated) {
           return {
-            token: data.token,
-            walletAddress: data.walletAddress,
+            token: data.token!,
+            walletAddress: data.walletAddress!,
           };
         }
       }
@@ -160,7 +161,7 @@ async function headlessLogin(): Promise<void> {
       transport: http(),
     });
 
-    const signature = await walletClient.signMessage({ message });
+    const signature = await walletClient.signMessage({ account, message });
 
     // Verify with API
     const apiUrl = getApiUrl();
@@ -178,7 +179,7 @@ async function headlessLogin(): Promise<void> {
       throw new Error("Authentication failed");
     }
 
-    const data = await response.json();
+    const data = await response.json() as { token: string };
     setCredentials(data.token, account.address);
 
     spinner.succeed(chalk.green(`Logged in as ${chalk.bold(formatAddress(account.address))}`));

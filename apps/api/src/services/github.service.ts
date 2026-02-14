@@ -315,7 +315,7 @@ export async function resolveNpmToGithub(
     });
     if (!ghRes.ok) return null;
 
-    const ghData = await ghRes.json();
+    const ghData = await ghRes.json() as { id: number };
     return { owner, repo, githubId: ghData.id };
   } catch {
     return null;
@@ -343,7 +343,7 @@ export async function resolveCrateToGithub(
     });
     if (!ghRes.ok) return null;
 
-    const ghData = await ghRes.json();
+    const ghData = await ghRes.json() as { id: number };
     return { owner, repo, githubId: ghData.id };
   } catch {
     return null;
@@ -367,7 +367,7 @@ export async function getAuthenticatedUser(
 
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const data = await res.json() as { id: number; login: string; avatar_url: string; name: string; bio: string };
     return {
       id: data.id,
       login: data.login,
@@ -401,7 +401,7 @@ export async function listUserRepos(
 
     if (!res.ok) return [];
 
-    const repos: any[] = await res.json();
+    const repos = await res.json() as any[];
     return repos
       .filter((r) => r.permissions?.admin === true)
       .map((r) => ({
@@ -435,7 +435,7 @@ export async function resolveGoModToGithub(
     });
     if (!ghRes.ok) return null;
 
-    const ghData = await ghRes.json();
+    const ghData = await ghRes.json() as { id: number };
     return { owner, repo, githubId: ghData.id };
   } catch {
     return null;

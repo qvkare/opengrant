@@ -24,7 +24,7 @@ export async function balance(): Promise<void> {
       throw new Error("Failed to fetch balance");
     }
 
-    const data = await response.json();
+    const data = await response.json() as { creditBalance?: string; usdc?: string; eth?: string };
 
     spinner.stop();
 
@@ -44,23 +44,9 @@ export async function balance(): Promise<void> {
     // On-chain wallet balance
     console.log(
       chalk.dim("Wallet Balance:    ") +
-        chalk.bold(`$${parseFloat(data.walletBalance || "0").toFixed(2)}`) +
+        chalk.bold(`$${parseFloat(data.usdc || "0").toFixed(2)}`) +
         chalk.dim(" USDC")
     );
-
-    console.log();
-
-    // This month's usage
-    if (data.monthlyUsage !== undefined) {
-      console.log(chalk.dim("This Month's Usage:"));
-      console.log(
-        chalk.dim("  API Calls:       ") + chalk.bold(data.monthlyUsage.calls || 0)
-      );
-      console.log(
-        chalk.dim("  Total Spent:     ") +
-          chalk.bold(`$${parseFloat(data.monthlyUsage.spent || "0").toFixed(2)}`)
-      );
-    }
 
     console.log();
     console.log(chalk.dim("Fund your account: opengrant fund <amount>"));

@@ -1,0 +1,3 @@
+name: payment-verification
+artifact-paths:
+  - src/index.ts

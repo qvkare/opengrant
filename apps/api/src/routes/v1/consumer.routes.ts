@@ -6,6 +6,7 @@ import { db } from "../../db/index.js";
 import {
   consumers,
   apiKeys,
+  apis,
   usageRecords,
 } from "@opengrant/database";
 import { getUSDCBalance, getETHBalance, getTransactionReceipt } from "../../services/blockchain.service.js";
@@ -89,7 +90,20 @@ router.put("/profile", async (req: AuthRequest, res: Response) => {
  * GET /v1/consumer/stats
  */
 router.get("/stats", async (req: AuthRequest, res: Response) => {
-  const { period = "30d", apiId } = req.query;
+  const { period = "30d", apiId: rawApiId, apiSlug } = req.query;
+
+  // Resolve apiSlug to apiId if provided
+  let apiId = rawApiId as string | undefined;
+  if (!apiId && apiSlug) {
+    const apiRecord = await db.query.apis.findFirst({
+      where: eq(apis.slug, apiSlug as string),
+      columns: { id: true },
+    });
+    if (!apiRecord) {
+      return res.status(404).json({ error: `API with slug "${apiSlug}" not found` });
+    }
+    apiId = apiRecord.id;
+  }
 
   // Calculate date range
   const days = period === "7d" ? 7 : period === "90d" ? 90 : 30;

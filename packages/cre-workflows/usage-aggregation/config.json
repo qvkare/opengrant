@@ -1,0 +1,4 @@
+{
+  "schedule": "*/5 * * * *",
+  "apiUrl": "https://api.opengrant.io"
+}

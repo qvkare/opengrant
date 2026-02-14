@@ -1,23 +1,24 @@
 {
   "name": "@opengrant/cre-workflows",
   "version": "0.1.0",
-  "description": "Placeholder: Chainlink CRE workflows for payment verification. Requires CRE credentials and DON ID for deployment (Phase 3).",
+  "description": "Chainlink CRE workflows for OpenGrant: usage aggregation, health monitoring, and payment verification.",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "simulate": "cre workflow simulate",
-    "deploy": "cre workflow deploy"
+    "simulate:usage": "cre workflow simulate ./usage-aggregation",
+    "simulate:health": "cre workflow simulate ./health-monitoring",
+    "simulate:payment": "cre workflow simulate ./payment-verification",
+    "deploy:usage": "cre workflow deploy ./usage-aggregation",
+    "deploy:health": "cre workflow deploy ./health-monitoring",
+    "deploy:payment": "cre workflow deploy ./payment-verification"
   },
   "dependencies": {
-    "viem": "^2.45.1"
+    "@chainlink/cre-sdk": "^1.0.9"
   },
   "devDependencies": {
+    "@bufbuild/protobuf": "^2.6.3",
     "@types/node": "^22.13.0",
-    "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   }
 }

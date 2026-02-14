@@ -93,7 +93,7 @@ export async function configSet(key: string, value: string): Promise<void> {
       }
       config.environment = value;
     } else {
-      (config as Record<string, string>)[configKey] = value;
+      (config as unknown as Record<string, string>)[configKey] = value;
     }
 
     await writeConfig(configPath, config);

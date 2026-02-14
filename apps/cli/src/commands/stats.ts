@@ -73,10 +73,9 @@ async function fetchStats(apiSlug?: string, period?: string): Promise<UsageStats
 
   const params = new URLSearchParams();
   if (period) params.set("period", period);
+  if (apiSlug) params.set("apiSlug", apiSlug);
 
-  const endpoint = apiSlug
-    ? `${apiUrl}/v1/consumer/stats/api/${apiSlug}?${params}`
-    : `${apiUrl}/v1/consumer/stats?${params}`;
+  const endpoint = `${apiUrl}/v1/consumer/stats?${params}`;
 
   const response = await fetch(endpoint, {
     headers: {
@@ -88,7 +87,7 @@ async function fetchStats(apiSlug?: string, period?: string): Promise<UsageStats
     throw new Error(`Failed to fetch stats: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<UsageStats | APIStats>;
 }
 
 function renderOverallStats(stats: UsageStats): void {

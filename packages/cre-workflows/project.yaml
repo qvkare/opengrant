@@ -1,0 +1,13 @@
+staging-settings:
+  account:
+    workflow-owner-address: "0x32Ef480f66feFDC0fd42D086117d4Bdf90c2e3C3"
+  rpcs:
+    - chain-name: base-sepolia
+      url: "https://sepolia.base.org"
+
+production-settings:
+  account:
+    workflow-owner-address: "0x32Ef480f66feFDC0fd42D086117d4Bdf90c2e3C3"
+  rpcs:
+    - chain-name: base-mainnet
+      url: "https://mainnet.base.org"

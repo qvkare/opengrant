@@ -7,7 +7,7 @@ interface KeysOptions {
   name?: string;
 }
 
-async function apiRequest(endpoint: string, options: RequestInit = {}) {
+async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const apiUrl = getApiUrl();
   const token = getToken();
 
@@ -21,11 +21,11 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = await response.json().catch(() => ({ error: "Request failed" })) as { error?: string; message?: string };
     throw new Error(error.error || error.message || "Request failed");
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 export async function createKey(options: KeysOptions): Promise<void> {

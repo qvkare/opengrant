@@ -262,7 +262,12 @@ export class OpenGrant {
       throw new PaymentFailedError(`Facilitator error: ${error}`);
     }
 
-    const result = await facilitatorResponse.json() as { paymentToken: string };
+    const result = await facilitatorResponse.json() as { paymentToken?: string };
+    if (!result.paymentToken) {
+      throw new PaymentFailedError(
+        "Facilitator response missing paymentToken field"
+      );
+    }
     return result.paymentToken;
   }
 

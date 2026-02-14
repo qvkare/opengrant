@@ -69,6 +69,9 @@ router.post("/mark-settled", async (req: Request, res: Response) => {
   if (!Array.isArray(recordIds) || recordIds.length === 0) {
     return res.status(400).json({ error: "recordIds array required" });
   }
+  if (recordIds.length > 10000) {
+    return res.status(400).json({ error: "Max 10000 records per batch" });
+  }
   if (!txHash) {
     return res.status(400).json({ error: "txHash required" });
   }
@@ -146,7 +149,7 @@ router.post("/health-report", async (req: Request, res: Response) => {
         .update(apis)
         .set({
           healthStatus: check.status,
-          lastHealthCheck: new Date(check.checkedAt),
+          lastHealthCheck: check.checkedAt ? new Date(check.checkedAt) : new Date(),
         })
         .where(eq(apis.id, check.apiId));
     }

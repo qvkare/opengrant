@@ -10,7 +10,7 @@ import { fund } from "./commands/fund.js";
 import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
-import { verifyGithub, createApi } from "./commands/publish.js";
+import { verifyGithub, createApi, activateApi } from "./commands/publish.js";
 
 const program = new Command();
 
@@ -107,6 +107,11 @@ publishCommand
   .description("Verify your GitHub identity")
   .option("-t, --token <pat>", "GitHub personal access token")
   .action(verifyGithub);
+
+publishCommand
+  .command("activate <slug>")
+  .description("Publish/activate an API (set status to active)")
+  .action(activateApi);
 
 publishCommand
   .command("create-api")

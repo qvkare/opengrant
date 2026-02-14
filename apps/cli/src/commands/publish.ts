@@ -50,16 +50,64 @@ export async function verifyGithub(options: VerifyGithubOptions): Promise<void> 
     });
 
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
+      const body = await response.json().catch(() => ({})) as { error?: string };
       throw new Error(body.error || `Failed: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { githubUsername: string; githubId: string };
     spinner.succeed(chalk.green(`GitHub verified as @${data.githubUsername}`));
     console.log(chalk.dim(`  GitHub ID: ${data.githubId}`));
     console.log(chalk.dim(`  You can now link GitHub repos to your APIs`));
   } catch (error) {
     spinner.fail(chalk.red("GitHub verification failed"));
+    if (error instanceof Error) {
+      console.error(chalk.dim(`  ${error.message}`));
+    }
+  }
+}
+
+export async function activateApi(slug: string): Promise<void> {
+  if (!isAuthenticated()) {
+    console.log(chalk.red("Not logged in. Run `opengrant login` first."));
+    return;
+  }
+
+  const spinner = ora("Activating API...").start();
+
+  try {
+    const apiUrl = getApiUrl();
+    const token = getToken();
+
+    // First resolve slug → API info
+    const lookupResp = await fetch(`${apiUrl}/v1/apis/${slug}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!lookupResp.ok) {
+      throw new Error(lookupResp.status === 404 ? `API "${slug}" not found` : `Failed to look up API: ${lookupResp.statusText}`);
+    }
+
+    const api = await lookupResp.json() as { id: string; name?: string };
+
+    // Publish the API
+    const publishResp = await fetch(`${apiUrl}/v1/publisher/apis/${api.id}/publish`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!publishResp.ok) {
+      const body = await publishResp.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error || `Failed: ${publishResp.statusText}`);
+    }
+
+    const result = await publishResp.json() as { name?: string; status?: string };
+    spinner.succeed(chalk.green(`API "${result.name || slug}" is now active`));
+    console.log(chalk.dim(`  Status: ${result.status}`));
+  } catch (error) {
+    spinner.fail(chalk.red("Failed to activate API"));
     if (error instanceof Error) {
       console.error(chalk.dim(`  ${error.message}`));
     }
@@ -108,11 +156,11 @@ export async function createApi(options: CreateApiOptions): Promise<void> {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({})) as { error?: string };
       throw new Error(data.error || `Failed: ${response.statusText}`);
     }
 
-    const api = await response.json();
+    const api = await response.json() as { name: string; slug: string; status: string };
     spinner.succeed(chalk.green(`API created: ${api.name}`));
     console.log(chalk.dim(`  Slug: ${api.slug}`));
     console.log(chalk.dim(`  Status: ${api.status}`));

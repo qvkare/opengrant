@@ -70,7 +70,7 @@ export async function fund(amount: string, options: FundOptions): Promise<void> 
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
-            const data = await res.json();
+            const data = await res.json() as { usdc?: string };
             const usdcBalance = parseFloat(data.usdc || "0");
             if (usdcBalance > 0) {
               spinner.succeed(
