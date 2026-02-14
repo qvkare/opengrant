@@ -241,6 +241,9 @@ importers:
       '@chainlink/cre-sdk':
         specifier: ^1.0.9
         version: 1.0.9(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@chainlink/cre-sdk-javy-plugin':
+        specifier: ^1.0.9
+        version: 1.0.9
     devDependencies:
       '@bufbuild/protobuf':
         specifier: ^2.6.3

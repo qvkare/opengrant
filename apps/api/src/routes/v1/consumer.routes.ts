@@ -281,7 +281,7 @@ router.get("/keys", async (req: AuthRequest, res: Response) => {
  * PUT /v1/consumer/keys/:keyId
  */
 router.put("/keys/:keyId", async (req: AuthRequest, res: Response) => {
-  const { keyId } = req.params;
+  const keyId = req.params.keyId as string;
   const { name, allowedApis, isActive } = req.body;
 
   try {
@@ -323,7 +323,7 @@ router.put("/keys/:keyId", async (req: AuthRequest, res: Response) => {
  * DELETE /v1/consumer/keys/:keyId
  */
 router.delete("/keys/:keyId", async (req: AuthRequest, res: Response) => {
-  const { keyId } = req.params;
+  const keyId = req.params.keyId as string;
 
   try {
     const [updated] = await db

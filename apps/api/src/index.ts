@@ -37,7 +37,7 @@ app.use(
   cors({
     origin: config.server.isDev
       ? "*"
-      : [config.web.url, "https://opengrant.io"],
+      : [config.web.url, "https://app.opengrant.dev", "https://opengrant.dev"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",

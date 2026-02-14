@@ -303,7 +303,7 @@ async function dynamicX402HandlerSimple(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const { apiSlug } = req.params;
+  const apiSlug = req.params.apiSlug as string;
   const path = "/" + (req.params[0] || "");
 
   try {
@@ -423,7 +423,8 @@ async function dynamicX402HandlerQualified(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const { publisherSlug, apiSlug } = req.params;
+  const publisherSlug = req.params.publisherSlug as string;
+  const apiSlug = req.params.apiSlug as string;
   const path = "/" + (req.params[0] || "");
 
   try {

@@ -67,7 +67,8 @@ router.get("/repos", async (req: Request, res: Response) => {
  */
 router.get("/repos/:owner/:name", async (req: Request, res: Response) => {
   try {
-    const { owner, name } = req.params;
+    const owner = req.params.owner as string;
+    const name = req.params.name as string;
 
     // Validate owner/name to prevent injection via crafted path params
     const GITHUB_NAME_REGEX = /^[a-zA-Z0-9._-]{1,100}$/;
@@ -120,7 +121,8 @@ router.get("/repos/:owner/:name", async (req: Request, res: Response) => {
  */
 router.get("/repos/:owner/:name/donors", async (req: Request, res: Response) => {
   try {
-    const { owner, name } = req.params;
+    const owner = req.params.owner as string;
+    const name = req.params.name as string;
     const { limit: rawLimit = "20", offset: rawOffset = "0" } = req.query;
 
     const parsedLimit = Math.min(Math.max(parseInt(rawLimit as string) || 20, 1), 100);

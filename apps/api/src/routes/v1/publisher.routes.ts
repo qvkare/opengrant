@@ -458,7 +458,7 @@ router.post("/apis", async (req: AuthRequest, res: Response) => {
  * PUT /v1/publisher/apis/:apiId
  */
 router.put("/apis/:apiId", async (req: AuthRequest, res: Response) => {
-  const { apiId } = req.params;
+  const apiId = req.params.apiId as string;
   const { name, description, baseUrl, status, category, tags, documentationUrl, logoUrl } = req.body;
 
   try {
@@ -515,7 +515,7 @@ router.put("/apis/:apiId", async (req: AuthRequest, res: Response) => {
  * POST /v1/publisher/apis/:apiId/publish
  */
 router.post("/apis/:apiId/publish", async (req: AuthRequest, res: Response) => {
-  const { apiId } = req.params;
+  const apiId = req.params.apiId as string;
 
   try {
     const publisher = await db.query.publishers.findFirst({
@@ -860,7 +860,8 @@ router.get("/withdrawals", async (req: AuthRequest, res: Response) => {
  * PUT /v1/publisher/apis/:apiId/endpoints/:endpointId
  */
 router.put("/apis/:apiId/endpoints/:endpointId", async (req: AuthRequest, res: Response) => {
-  const { apiId, endpointId } = req.params;
+  const apiId = req.params.apiId as string;
+  const endpointId = req.params.endpointId as string;
   const { pricePerCall, rateLimitPerMinute, rateLimitPerHour, rateLimitPerDay, isActive, description } = req.body;
 
   try {

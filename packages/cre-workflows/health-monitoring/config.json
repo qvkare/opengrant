@@ -1,6 +1,6 @@
 {
   "schedule": "* * * * *",
-  "apiUrl": "https://api.opengrant.io",
+  "apiUrl": "https://api.opengrant.dev",
   "healthCheckTimeoutMs": 5000,
   "degradedThresholdMs": 2000,
   "maxConsecutiveFailures": 5

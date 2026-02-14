@@ -122,7 +122,7 @@ export const config = {
   },
   auth: {
     jwtSecret: env.JWT_SECRET,
-    jwtExpiresIn: env.JWT_EXPIRES_IN,
+    jwtExpiresIn: env.JWT_EXPIRES_IN as unknown as import("jsonwebtoken").SignOptions["expiresIn"],
   },
   web: {
     url: env.WEB_URL,

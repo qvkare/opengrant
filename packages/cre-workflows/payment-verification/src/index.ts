@@ -21,6 +21,7 @@ import {
   type HTTPSendRequester,
   type HTTPPayload,
 } from "@chainlink/cre-sdk";
+import { toBase64 } from "../../lib/base64.js";
 
 interface Config {
   apiUrl: string;
@@ -83,7 +84,7 @@ const verifyWithFacilitator = (
       headers: {
         "Content-Type": "application/json",
       },
-      body: btoa(
+      body: toBase64(
         JSON.stringify({
           paymentPayload,
           paymentRequirements: paymentRequirement,

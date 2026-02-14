@@ -20,6 +20,7 @@ import {
   type HTTPSendRequester,
   type CronPayload,
 } from "@chainlink/cre-sdk";
+import { toBase64 } from "../../lib/base64.js";
 
 interface Config {
   schedule: string;
@@ -82,7 +83,7 @@ const triggerSettlement = (
         Authorization: "Bearer " + apiKey,
         "Content-Type": "application/json",
       },
-      body: btoa(JSON.stringify({ source: "cre-workflow" })),
+      body: toBase64(JSON.stringify({ source: "cre-workflow" })),
     })
     .result();
 

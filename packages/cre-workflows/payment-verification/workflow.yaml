@@ -1,3 +1,15 @@
-name: payment-verification
-artifact-paths:
-  - src/index.ts
+staging-settings:
+  user-workflow:
+    workflow-name: "opengrant-payment-verification"
+  workflow-artifacts:
+    workflow-path: "./src/index.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"
+
+production-settings:
+  user-workflow:
+    workflow-name: "opengrant-payment-verification"
+  workflow-artifacts:
+    workflow-path: "./src/index.ts"
+    config-path: "./config.json"
+    secrets-path: "../secrets.yaml"

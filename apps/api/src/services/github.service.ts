@@ -115,7 +115,7 @@ export async function syncTopRepos(limit: number = 500): Promise<number> {
       break;
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as { items?: GitHubApiRepo[] };
     const items: GitHubApiRepo[] = data.items || [];
 
     for (const repo of items) {
@@ -170,7 +170,7 @@ export async function getRepoByOwnerName(
     return cached || null;
   }
 
-  const repo: GitHubApiRepo = await res.json();
+  const repo = (await res.json()) as GitHubApiRepo;
   const mapped = mapApiRepo(repo);
 
   const [upserted] = await db
@@ -266,7 +266,7 @@ export async function verifyRepoOwnership(
 
   if (!res.ok) return false;
 
-  const repo = await res.json();
+  const repo = (await res.json()) as { permissions?: { admin?: boolean } };
   return repo.permissions?.admin === true;
 }
 
@@ -284,7 +284,7 @@ export async function checkFundingYml(
 
   if (!res.ok) return null;
 
-  const data = await res.json();
+  const data = (await res.json()) as { content?: string };
   if (!data.content) return null;
 
   const content = Buffer.from(data.content, "base64").toString("utf-8");
@@ -303,7 +303,7 @@ export async function resolveNpmToGithub(
     const res = await fetchWithTimeout(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`);
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const data = (await res.json()) as { repository?: { url?: string } };
     const repoUrl = data.repository?.url || "";
     const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
     if (!match) return null;
@@ -332,7 +332,7 @@ export async function resolveCrateToGithub(
     const res = await fetchWithTimeout(`https://crates.io/api/v1/crates/${encodeURIComponent(crateName)}`);
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const data = (await res.json()) as { crate?: { repository?: string } };
     const repoUrl = data.crate?.repository || "";
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/.]+)/);
     if (!match) return null;

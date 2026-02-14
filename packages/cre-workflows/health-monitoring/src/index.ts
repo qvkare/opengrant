@@ -22,6 +22,7 @@ import {
   type HTTPSendRequester,
   type CronPayload,
 } from "@chainlink/cre-sdk";
+import { toBase64 } from "../../lib/base64.js";
 
 interface Config {
   schedule: string;
@@ -143,7 +144,7 @@ const submitReport = (
         Authorization: "Bearer " + apiKey,
         "Content-Type": "application/json",
       },
-      body: btoa(JSON.stringify(report)),
+      body: toBase64(JSON.stringify(report)),
     })
     .result();
 
@@ -164,7 +165,7 @@ const deactivateApis = (
         Authorization: "Bearer " + apiKey,
         "Content-Type": "application/json",
       },
-      body: btoa(
+      body: toBase64(
         JSON.stringify({
           apiIds,
           reason:

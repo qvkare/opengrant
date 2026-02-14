@@ -97,7 +97,7 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:slug", async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const { slug } = req.params;
+    const slug = req.params.slug as string;
 
     const [api] = await db
       .select()
@@ -133,7 +133,7 @@ router.get("/:slug", async (req: Request, res: Response) => {
 router.get("/:slug/endpoints", async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const { slug } = req.params;
+    const slug = req.params.slug as string;
 
     // Find API
     const [api] = await db
@@ -241,7 +241,7 @@ router.put(
   async (req: AuthRequest, res: Response) => {
     try {
       const db = getDb();
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = updateApiSchema.parse(req.body);
 
       // Verify ownership
@@ -295,7 +295,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const db = getDb();
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Verify ownership
       const [api] = await db
@@ -356,7 +356,7 @@ router.delete(
   async (req: AuthRequest, res: Response) => {
     try {
       const db = getDb();
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Verify ownership
       const [api] = await db
@@ -409,7 +409,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const db = getDb();
-      const { id } = req.params;
+      const id = req.params.id as string;
       const data = configureEndpointSchema.parse(req.body);
 
       // Verify ownership
