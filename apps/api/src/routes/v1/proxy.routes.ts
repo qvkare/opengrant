@@ -304,7 +304,7 @@ async function dynamicX402HandlerSimple(
   next: NextFunction
 ): Promise<void> {
   const apiSlug = req.params.apiSlug as string;
-  const path = "/" + (req.params[0] || "");
+  const path = "/" + ((req.params as Record<string, string>).path || "");
 
   try {
     // Extract consumer ID if authenticated
@@ -425,7 +425,7 @@ async function dynamicX402HandlerQualified(
 ): Promise<void> {
   const publisherSlug = req.params.publisherSlug as string;
   const apiSlug = req.params.apiSlug as string;
-  const path = "/" + (req.params[0] || "");
+  const path = "/" + ((req.params as Record<string, string>).path || "");
 
   try {
     // Extract consumer ID if authenticated
@@ -594,11 +594,11 @@ async function proxyHandler(req: AuthenticatedRequest, res: Response): Promise<v
 const rateLimiter = createWalletRateLimitMiddleware(10000, 3600); // 10k requests per hour per wallet
 
 /**
- * Simple pattern (for SDK): /proxy/:apiSlug/*
+ * Simple pattern (for SDK): /proxy/:apiSlug/{*path}
  * Example: /proxy/tailwind/v1/generate
  */
 router.all(
-  "/:apiSlug/*",
+  "/:apiSlug/{*path}",
   rateLimiter,
   dynamicX402HandlerSimple,
   proxyHandler
@@ -625,7 +625,7 @@ export function createQualifiedProxyRouter(): Router {
    * Example: /proxy/0x1234.../weather-api/v1/forecast
    */
   qualifiedRouter.all(
-    "/:publisherSlug/:apiSlug/*",
+    "/:publisherSlug/:apiSlug/{*path}",
     rateLimiter,
     dynamicX402HandlerQualified,
     proxyHandler

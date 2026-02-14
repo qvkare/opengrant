@@ -11,6 +11,10 @@ out/
 .env
 .env.local
 .env.*.local
+.env.production
+
+# Docker (prod config has secrets)
+docker-compose.prod.yml
 
 # OS files
 .DS_Store

@@ -2,7 +2,6 @@
 # OpenGrant Multi-Stage Docker Build
 # ============================================
 
-# Base image with pnpm
 FROM node:20-alpine AS base
 RUN npm install -g pnpm@9
 WORKDIR /app
@@ -33,22 +32,37 @@ COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 
-# Build all packages
-RUN pnpm run build
+# Next.js needs NEXT_PUBLIC_* at build time
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_PARTICLE_PROJECT_ID
+ARG NEXT_PUBLIC_PARTICLE_CLIENT_KEY
+ARG NEXT_PUBLIC_PARTICLE_APP_ID
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_PARTICLE_PROJECT_ID=$NEXT_PUBLIC_PARTICLE_PROJECT_ID
+ENV NEXT_PUBLIC_PARTICLE_CLIENT_KEY=$NEXT_PUBLIC_PARTICLE_CLIENT_KEY
+ENV NEXT_PUBLIC_PARTICLE_APP_ID=$NEXT_PUBLIC_PARTICLE_APP_ID
+
+# Build packages (skip cre-workflows)
+RUN pnpm --filter @opengrant/database build && \
+    pnpm --filter @opengrant/sdk build && \
+    pnpm --filter @opengrant/api build && \
+    pnpm --filter @opengrant/web build
 
 # ============================================
 # API Production Image
 # ============================================
 FROM node:20-alpine AS api
-RUN npm install -g pnpm@9
 WORKDIR /app
 
-# Copy built API
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./
+# Copy full pnpm structure (preserves symlinks)
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/packages/database ./packages/database
 
-# Health check
+WORKDIR /app/apps/api
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
@@ -62,17 +76,18 @@ CMD ["node", "dist/index.js"]
 # Web Production Image
 # ============================================
 FROM node:20-alpine AS web
-RUN npm install -g pnpm@9
 WORKDIR /app
 
-# Copy built web app
-COPY --from=builder /app/apps/web/.next ./.next
-COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/apps/web/package.json ./
+# Copy full pnpm structure
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=builder /app/apps/web/.next ./apps/web/.next
+COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
+
+WORKDIR /app/apps/web
 
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["npx", "next", "start"]
