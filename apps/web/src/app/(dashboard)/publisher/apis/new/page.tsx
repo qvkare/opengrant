@@ -169,7 +169,7 @@ export default function RegisterAPIPage() {
               className={cn(
                 "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
                 step >= s.num
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-black text-white"
                   : "bg-muted text-muted-foreground"
               )}
             >
@@ -187,7 +187,7 @@ export default function RegisterAPIPage() {
               <div
                 className={cn(
                   "w-16 h-0.5 mx-4",
-                  step > s.num ? "bg-primary" : "bg-muted"
+                  step > s.num ? "bg-black" : "bg-muted"
                 )}
               />
             )}
@@ -217,7 +217,7 @@ export default function RegisterAPIPage() {
                   }
                 }}
                 placeholder="My Awesome API"
-                className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
 
@@ -232,7 +232,7 @@ export default function RegisterAPIPage() {
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
                   placeholder="my-api"
-                  className="flex-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                  className="flex-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono"
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -247,7 +247,7 @@ export default function RegisterAPIPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe what your API does..."
                 rows={3}
-                className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black resize-none"
               />
             </div>
 
@@ -258,7 +258,7 @@ export default function RegisterAPIPage() {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="https://api.example.com"
-                className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 The base URL where your API is hosted. We'll proxy requests to this URL.
@@ -277,7 +277,7 @@ export default function RegisterAPIPage() {
                   value={githubPat}
                   onChange={(e) => setGithubPat(e.target.value)}
                   placeholder="GitHub PAT (ghp_...)"
-                  className="w-full px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  className="w-full px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono text-sm"
                 />
                 <div className="flex gap-2">
                   <Button
@@ -293,7 +293,7 @@ export default function RegisterAPIPage() {
                     <select
                       value={githubRepo}
                       onChange={(e) => setGithubRepo(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      className="flex-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black text-sm"
                     >
                       <option value="">None</option>
                       {githubRepos.map((r) => (
@@ -360,7 +360,7 @@ export default function RegisterAPIPage() {
                       onChange={(e) =>
                         updateEndpoint(endpoint.id, "method", e.target.value)
                       }
-                      className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
                     >
                       <option value="GET">GET</option>
                       <option value="POST">POST</option>
@@ -378,7 +378,7 @@ export default function RegisterAPIPage() {
                         updateEndpoint(endpoint.id, "path", e.target.value)
                       }
                       placeholder="/v1/endpoint"
-                      className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                      className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono"
                     />
                   </div>
                 </div>
@@ -392,7 +392,7 @@ export default function RegisterAPIPage() {
                       updateEndpoint(endpoint.id, "description", e.target.value)
                     }
                     placeholder="What does this endpoint do?"
-                    className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
                   />
                 </div>
 
@@ -409,7 +409,7 @@ export default function RegisterAPIPage() {
                       onChange={(e) =>
                         updateEndpoint(endpoint.id, "pricePerCall", e.target.value)
                       }
-                      className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                   <div>
@@ -427,7 +427,7 @@ export default function RegisterAPIPage() {
                           e.target.value
                         )
                       }
-                      className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                 </div>

@@ -168,7 +168,7 @@ export default function ConsumerUsagePage() {
                 </div>
                 <div className="w-full bg-muted rounded-full h-3">
                   <div
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all"
+                    className="bg-black h-3 rounded-full transition-all"
                     style={{ width: `${api.percentage}%` }}
                   />
                 </div>
@@ -193,7 +193,7 @@ export default function ConsumerUsagePage() {
                 </span>
                 <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
                   <div
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full transition-all"
+                    className="bg-black h-full rounded-full transition-all"
                     style={{
                       width: `${(day.calls / Math.max(...usage.dailyData.map((d) => d.calls))) * 100}%`,
                     }}

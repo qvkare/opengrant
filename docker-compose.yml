@@ -94,6 +94,22 @@ services:
     depends_on:
       - api
 
+  # ============================================
+  # Landing Page
+  # ============================================
+  landing:
+    build:
+      context: .
+      target: landing
+    container_name: opengrant-landing
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://app.opengrant.dev}
+
 volumes:
   postgres_data:
   redis_data:

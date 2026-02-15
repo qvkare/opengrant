@@ -95,7 +95,7 @@ export default function DashboardLayout({
   if (!ready) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
       </div>
     );
   }
@@ -121,7 +121,7 @@ export default function DashboardLayout({
             <Link
               href="/publisher"
               className={cn(
-                "flex-1 text-center py-2 text-sm font-medium rounded-md transition-colors",
+                "flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors",
                 isPublisher
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -132,7 +132,7 @@ export default function DashboardLayout({
             <Link
               href="/consumer"
               className={cn(
-                "flex-1 text-center py-2 text-sm font-medium rounded-md transition-colors",
+                "flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors",
                 !isPublisher
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -149,10 +149,10 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                   pathname === item.href
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-gray-100 text-black"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-black"
                 )}
               >
                 <NavIcon icon={item.icon} />
@@ -165,7 +165,7 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <div className="container py-6">{children}</div>
+        <div className="max-w-7xl mx-auto px-6 py-6">{children}</div>
       </div>
     </div>
   );

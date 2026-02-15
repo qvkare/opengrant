@@ -111,7 +111,7 @@ function CLIAuthContent() {
   if (authState === "loading") {
     return (
       <div className="flex min-h-[80vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -172,7 +172,7 @@ function CLIAuthContent() {
       <div className="flex min-h-[80vh] items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center gap-4 pt-6">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             <div className="text-center">
               <h2 className="text-lg font-semibold">Signing Message</h2>
               <p className="text-sm text-muted-foreground">
@@ -237,7 +237,7 @@ export default function CLIAuthPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[80vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
       }
     >

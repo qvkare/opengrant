@@ -91,7 +91,7 @@ export default function ProjectDetailPage() {
   if (loading) {
     return (
       <div className="container py-8 flex justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
       </div>
     );
   }
@@ -201,7 +201,7 @@ export default function ProjectDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {repo.claimStatus === "claimed" && repo.claimedBy && (
-            <div className="p-3 bg-green-500/10 rounded-md text-sm">
+            <div className="p-3 bg-green-500/10 rounded-xl text-sm">
               Funds go directly to {formatAddress(repo.claimedBy)}
             </div>
           )}

@@ -1,27 +1,31 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ClientShell } from "@/components/client-shell";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-inter",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+});
 
 export const metadata: Metadata = {
-  title: "OpenGrant - Monetize Your Open Source APIs",
+  title: "OpenGrant App",
   description:
-    "Crypto-native API marketplace for open-source monetization using x402 micropayments and Chainlink CRE.",
-  keywords: ["open source", "api", "micropayments", "x402", "crypto", "blockchain"],
-  authors: [{ name: "OpenGrant" }],
+    "Explore, publish, and manage APIs on the OpenGrant marketplace.",
   openGraph: {
-    title: "OpenGrant - Monetize Your Open Source APIs",
-    description: "Crypto-native API marketplace for open-source monetization",
-    url: "https://opengrant.dev",
+    title: "OpenGrant App",
+    description:
+      "Explore, publish, and manage APIs on the OpenGrant marketplace.",
+    url: "https://app.opengrant.dev",
     siteName: "OpenGrant",
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "OpenGrant",
-    description: "Crypto-native API marketplace for open-source monetization",
   },
 };
 
@@ -31,8 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={inter.className}>
+    <html lang="en">
+      <body
+        className={`${inter.variable} ${jetbrainsMono.variable} antialiased selection:bg-black selection:text-white`}
+      >
         <ClientShell>{children}</ClientShell>
       </body>
     </html>

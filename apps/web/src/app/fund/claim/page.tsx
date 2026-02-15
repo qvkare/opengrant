@@ -85,7 +85,7 @@ export default function ClaimPage() {
   }
 
   return (
-    <div className="container py-8 max-w-2xl">
+    <div className="max-w-2xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/fund" className="hover:text-foreground">Fund</Link>
@@ -105,13 +105,13 @@ export default function ClaimPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">1</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">1</span>
             Connect Wallet
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isConnected && address ? (
-            <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-md">
+            <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-xl">
               <Badge variant="default" className="bg-green-600">Connected</Badge>
               <span className="text-sm font-mono">
                 {address.slice(0, 6)}...{address.slice(-4)}
@@ -129,7 +129,7 @@ export default function ClaimPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">2</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">2</span>
             Verify GitHub Ownership
           </CardTitle>
         </CardHeader>
@@ -165,14 +165,14 @@ export default function ClaimPage() {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">3</span>
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">3</span>
               Your Repositories
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {repos.map((repo) => (
-                <div key={repo.id} className="flex items-center justify-between p-3 border rounded-md">
+                <div key={repo.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl">
                   <div>
                     <p className="text-sm font-medium">{repo.fullName}</p>
                     <p className="text-xs text-muted-foreground">
@@ -196,7 +196,7 @@ export default function ClaimPage() {
       )}
 
       {success && (
-        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-md text-center">
+        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-center">
           <p className="font-medium text-green-600">{success}</p>
         </div>
       )}
@@ -210,7 +210,7 @@ export default function ClaimPage() {
           <p className="text-sm text-muted-foreground mb-3">
             You can also verify ownership by adding a FUNDING.yml file to your repository:
           </p>
-          <pre className="p-3 bg-muted rounded-md text-xs overflow-x-auto">
+          <pre className="p-3 bg-muted rounded-xl text-xs overflow-x-auto">
             {`# .github/FUNDING.yml
 opengrant: 0xYourWalletAddress`}
           </pre>

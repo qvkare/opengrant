@@ -119,7 +119,7 @@ export default function StackFundPage() {
     .sort((a, b) => b.amount - a.amount) || [];
 
   return (
-    <div className="container py-8 max-w-3xl">
+    <div className="max-w-3xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/fund" className="hover:text-foreground">Fund</Link>
@@ -145,7 +145,7 @@ export default function StackFundPage() {
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleFileDrop}
-              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-black/30 transition-colors cursor-pointer"
               onClick={() => document.getElementById("file-input")?.click()}
             >
               <svg className="mx-auto h-12 w-12 text-muted-foreground mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

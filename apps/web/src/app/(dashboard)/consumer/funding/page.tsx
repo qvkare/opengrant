@@ -107,7 +107,7 @@ export default function ConsumerFundingPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
         </div>
       ) : donations.length === 0 ? (
         <Card>
@@ -142,7 +142,7 @@ export default function ConsumerFundingPage() {
                       <div>
                         <a
                           href={`/fund/${donation.repoOwner}/${donation.repoName}`}
-                          className="text-sm font-medium hover:text-primary"
+                          className="text-sm font-medium hover:text-black"
                         >
                           {donation.repoFullName}
                         </a>

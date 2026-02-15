@@ -110,7 +110,7 @@ export default function ProjectSupportPage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function ProjectSupportPage() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Project Header */}
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-4">
@@ -209,7 +209,7 @@ export default function ProjectSupportPage() {
                     className="flex items-center justify-between rounded-lg border p-4"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                      <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-black">
                         {endpoint.method}
                       </span>
                       <div>
@@ -241,7 +241,7 @@ export default function ProjectSupportPage() {
             <Card>
               <CardContent className="p-4">
                 <span className="text-sm text-muted-foreground">Category: </span>
-                <span className="rounded bg-primary/10 px-2 py-1 text-sm font-medium text-primary">
+                <span className="rounded bg-gray-100 px-2 py-1 text-sm font-medium text-black">
                   {project.category}
                 </span>
               </CardContent>
@@ -271,11 +271,11 @@ export default function ProjectSupportPage() {
                         setCustomAmount("");
                       }}
                       className={`w-full flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted ${
-                        selectedTier === tier.id ? "border-primary bg-primary/5" : ""
+                        selectedTier === tier.id ? "border-black bg-black/5" : ""
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className="h-5 w-5 text-primary" />
+                        <Icon className="h-5 w-5 text-black" />
                         <span className="font-medium">{tier.label}</span>
                       </div>
                       <span className="font-semibold">${tier.amount}</span>
@@ -301,7 +301,7 @@ export default function ProjectSupportPage() {
                       setCustomAmount(e.target.value);
                       setSelectedTier(null);
                     }}
-                    className="w-full rounded-lg border bg-background py-3 pl-7 pr-4 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-lg border bg-background py-3 pl-7 pr-4 focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
                   />
                 </div>
               </div>

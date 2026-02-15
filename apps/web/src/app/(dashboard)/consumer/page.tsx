@@ -231,7 +231,7 @@ export default function ConsumerDashboard() {
                   className="flex items-center justify-between py-2 border-b last:border-0"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">
                       {index + 1}
                     </div>
                     <div>
@@ -305,7 +305,7 @@ export default function ConsumerDashboard() {
         <CardContent>
           <div className="space-y-4">
             <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-black font-bold">
                 1
               </div>
               <div>
@@ -316,7 +316,7 @@ export default function ConsumerDashboard() {
               </div>
             </div>
             <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-black font-bold">
                 2
               </div>
               <div>
@@ -327,7 +327,7 @@ export default function ConsumerDashboard() {
               </div>
             </div>
             <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-black font-bold">
                 3
               </div>
               <div>

@@ -211,7 +211,7 @@ export default function PublisherDashboard() {
                   className="flex items-center justify-between py-2 border-b last:border-0"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">
                       {index + 1}
                     </div>
                     <div>

@@ -86,7 +86,7 @@ function WithdrawModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
               />
               <Button
                 variant="ghost"
@@ -361,7 +361,7 @@ export default function PublisherEarningsPage() {
           <div className="flex gap-4">
             <div className="flex-shrink-0">
               <svg
-                className="w-6 h-6 text-blue-500"
+                className="w-6 h-6 text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

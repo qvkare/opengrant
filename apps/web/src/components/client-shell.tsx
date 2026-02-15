@@ -12,39 +12,39 @@ const Header = dynamic(
   { ssr: false }
 );
 
-function FooterLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: ReactNode;
-}) {
-  return (
-    <a href={href} className="hover:text-foreground transition-colors">
-      {children}
-    </a>
-  );
-}
-
 export function ClientShell({ children }: { children: ReactNode }) {
   return (
     <Providers>
       <div className="relative flex min-h-screen flex-col">
         <Header />
         <main className="flex-1">{children}</main>
-        <footer className="border-t py-6 md:py-0">
-          <div className="container flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row">
-            <p className="text-sm text-muted-foreground">
+        <footer className="bg-gray-50 border-t border-gray-100 py-8 px-6 text-sm">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-gray-400">
+            <p>
               &copy; {new Date().getFullYear()} OpenGrant. All rights reserved.
             </p>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <FooterLink href="/terms">Terms</FooterLink>
-              <FooterLink href="/privacy">Privacy</FooterLink>
+            <div className="flex items-center gap-6">
               <a
-                href="https://github.com/opengrant"
+                href="https://opengrant.dev/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-black transition-colors"
+              >
+                Privacy
+              </a>
+              <a
+                href="https://opengrant.dev/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-black transition-colors"
+              >
+                Terms
+              </a>
+              <a
+                href="https://github.com/qvkare/opengrant"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-black transition-colors"
               >
                 GitHub
               </a>

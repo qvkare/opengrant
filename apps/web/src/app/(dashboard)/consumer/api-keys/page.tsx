@@ -65,7 +65,7 @@ function CreateKeyModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Production App"
-              className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
             />
             <p className="text-xs text-muted-foreground mt-1">
               A friendly name to identify this key
@@ -272,9 +272,9 @@ export default function ConsumerAPIKeysPage() {
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
                       <svg
-                        className="w-5 h-5 text-primary"
+                        className="w-5 h-5 text-black"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"

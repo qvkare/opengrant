@@ -65,7 +65,7 @@ export default function ConsumerFundPage() {
         <button
           onClick={() => setFundingMethod("card")}
           className={cn(
-            "flex-1 py-3 text-sm font-medium rounded-md transition-colors",
+            "flex-1 py-3 text-sm font-medium rounded-lg transition-colors",
             fundingMethod === "card"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
@@ -89,7 +89,7 @@ export default function ConsumerFundPage() {
         <button
           onClick={() => setFundingMethod("crypto")}
           className={cn(
-            "flex-1 py-3 text-sm font-medium rounded-md transition-colors",
+            "flex-1 py-3 text-sm font-medium rounded-lg transition-colors",
             fundingMethod === "crypto"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
@@ -135,8 +135,8 @@ export default function ConsumerFundPage() {
                     className={cn(
                       "py-3 rounded-lg border text-center font-medium transition-colors",
                       selectedAmount === preset
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-muted hover:border-primary/50"
+                        ? "border-black bg-black/5 text-black"
+                        : "border-gray-200 hover:border-black/30"
                     )}
                   >
                     ${preset}
@@ -162,7 +162,7 @@ export default function ConsumerFundPage() {
                     setSelectedAmount(null);
                   }}
                   placeholder="Enter amount"
-                  className="w-full pl-8 pr-4 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-8 pr-4 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
             </div>
@@ -315,7 +315,7 @@ export default function ConsumerFundPage() {
           <div className="flex gap-4">
             <div className="flex-shrink-0">
               <svg
-                className="w-6 h-6 text-blue-500"
+                className="w-6 h-6 text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

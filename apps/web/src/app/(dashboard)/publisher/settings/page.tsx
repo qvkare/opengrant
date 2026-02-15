@@ -96,7 +96,7 @@ export default function PublisherSettingsPage() {
               type="text"
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
-              className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
 
@@ -107,7 +107,7 @@ export default function PublisherSettingsPage() {
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="https://example.com"
-              className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
 
@@ -119,7 +119,7 @@ export default function PublisherSettingsPage() {
                 value={twitter}
                 onChange={(e) => setTwitter(e.target.value)}
                 placeholder="@username"
-                className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div>
@@ -129,7 +129,7 @@ export default function PublisherSettingsPage() {
                 value={github}
                 onChange={(e) => setGithub(e.target.value)}
                 placeholder="username/repo"
-                className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
           </div>
@@ -170,7 +170,7 @@ export default function PublisherSettingsPage() {
                   value={githubPat}
                   onChange={(e) => setGithubPat(e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="w-full mt-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  className="w-full mt-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Create a token at GitHub Settings &gt; Developer settings &gt; Personal access tokens.
@@ -229,7 +229,7 @@ export default function PublisherSettingsPage() {
                   value={payee.address}
                   onChange={(e) => updatePayee(index, "address", e.target.value)}
                   placeholder="0x..."
-                  className="flex-1 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                  className="flex-1 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black font-mono text-sm"
                 />
                 <div className="flex items-center gap-2">
                   <input
@@ -240,7 +240,7 @@ export default function PublisherSettingsPage() {
                     onChange={(e) =>
                       updatePayee(index, "share", parseInt(e.target.value) || 0)
                     }
-                    className="w-20 px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-center"
+                    className="w-20 px-3 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black text-center"
                   />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
@@ -295,7 +295,7 @@ export default function PublisherSettingsPage() {
           <div className="bg-muted/50 rounded-lg p-4">
             <h4 className="font-medium mb-2 flex items-center gap-2">
               <svg
-                className="w-4 h-4 text-blue-500"
+                className="w-4 h-4 text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -341,7 +341,7 @@ export default function PublisherSettingsPage() {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
             </label>
           </div>
 
@@ -354,7 +354,7 @@ export default function PublisherSettingsPage() {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
             </label>
           </div>
 
@@ -367,7 +367,7 @@ export default function PublisherSettingsPage() {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" />
-              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
             </label>
           </div>
         </CardContent>

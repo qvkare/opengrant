@@ -61,9 +61,9 @@ function TransactionIcon({ type }: { type: string }) {
       );
     default:
       return (
-        <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
           <svg
-            className="w-5 h-5 text-blue-500"
+            className="w-5 h-5 text-gray-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -260,7 +260,7 @@ export default function ConsumerPaymentsPage() {
           <div className="flex gap-4">
             <div className="flex-shrink-0">
               <svg
-                className="w-6 h-6 text-blue-500"
+                className="w-6 h-6 text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

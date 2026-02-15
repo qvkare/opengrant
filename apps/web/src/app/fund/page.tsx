@@ -50,7 +50,7 @@ function RepoCard({ repo }: { repo: FundedRepo }) {
 
   return (
     <Link href={`/fund/${repo.owner}/${repo.name}`}>
-      <Card className="hover:border-primary/50 transition-colors h-full">
+      <Card className="hover:border-black/30 transition-colors h-full">
         <CardHeader className="pb-3">
           <div className="flex items-start gap-3">
             {repo.avatarUrl && (
@@ -144,10 +144,10 @@ export default function FundExplorePage() {
   }, [selectedLanguage, sortBy, searchQuery, offset]);
 
   return (
-    <div className="container py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Stats Banner */}
       {stats && (
-        <div className="mb-8 p-6 bg-gradient-to-r from-green-500/10 to-blue-500/10 rounded-xl">
+        <div className="mb-8 p-6 bg-gray-50 border border-gray-100 rounded-xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold text-green-500">
@@ -207,13 +207,13 @@ export default function FundExplorePage() {
             placeholder="Search projects..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setOffset(0); }}
-            className="w-full pl-10 pr-4 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-10 pr-4 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
           />
         </div>
         <select
           value={sortBy}
           onChange={(e) => { setSortBy(e.target.value); setOffset(0); }}
-          className="px-4 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          className="px-4 py-2 bg-background border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black"
         >
           {sortOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -238,7 +238,7 @@ export default function FundExplorePage() {
       {/* Results */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
         </div>
       ) : repos.length > 0 ? (
         <>

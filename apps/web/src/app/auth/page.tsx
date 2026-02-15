@@ -31,7 +31,7 @@ function AuthContent() {
   if (!ready) {
     return (
       <div className="flex min-h-[80vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -74,11 +74,21 @@ function AuthContent() {
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             By connecting, you agree to our{" "}
-            <a href="/terms" className="underline hover:text-foreground">
+            <a
+              href="https://opengrant.dev/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
               Terms of Service
             </a>{" "}
             and{" "}
-            <a href="/privacy" className="underline hover:text-foreground">
+            <a
+              href="https://opengrant.dev/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
               Privacy Policy
             </a>
           </p>
@@ -93,7 +103,7 @@ export default function AuthPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[80vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
       }
     >

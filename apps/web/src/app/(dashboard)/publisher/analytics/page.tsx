@@ -32,7 +32,7 @@ function SimpleBarChart({
           <span className="text-xs text-muted-foreground w-12">{item[labelKey]}</span>
           <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full transition-all"
+              className="bg-black h-full rounded-full transition-all"
               style={{ width: `${(item[valueKey] / maxValue) * 100}%` }}
             />
           </div>
@@ -201,7 +201,7 @@ export default function PublisherAnalyticsPage() {
                   </span>
                   <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-green-500 to-emerald-600 h-full rounded-full transition-all"
+                      className="bg-green-500 h-full rounded-full transition-all"
                       style={{
                         width: `${(parseInt(item.revenue) / Math.max(...analytics.dailyData.map((d) => parseInt(d.revenue)))) * 100}%`,
                       }}
@@ -231,7 +231,7 @@ export default function PublisherAnalyticsPage() {
                 className="flex items-center justify-between py-3 border-b last:border-0"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">
                     {index + 1}
                   </div>
                   <div>
@@ -274,7 +274,7 @@ export default function PublisherAnalyticsPage() {
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full"
+                        className="bg-green-500 h-2 rounded-full"
                         style={{ width: `${(parseInt(item.revenue) / maxRevenue) * 100}%` }}
                       />
                     </div>
