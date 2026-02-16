@@ -297,10 +297,6 @@ cd packages/contracts && forge test -vvv
 
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
 
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
 ## Links
 
 - Website: [opengrant.dev](https://opengrant.dev)
