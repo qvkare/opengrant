@@ -1,0 +1,185 @@
+---
+title: "Error Handling"
+description: "Handle SDK errors including payment failures, rate limits, and network issues."
+---
+
+All SDK errors extend the base `OpenGrantError` class and include a `code`, `status`, and optional `details`.
+
+## Error Classes
+
+### OpenGrantError
+
+Base error class for all SDK errors.
+
+```typescript
+class OpenGrantError extends Error {
+  code: string;
+  status: number;
+  details?: Record<string, unknown>;
+
+  toJSON(): APIError;
+}
+```
+
+### PaymentRequiredError
+
+Thrown when payment is required but cannot be completed.
+
+| Property | Value |
+|----------|-------|
+| `code` | `PAYMENT_REQUIRED` |
+| `status` | `402` |
+
+Causes:
+- No wallet configured (`privateKey` or `walletClient`)
+- Price exceeds `maxPrice` limit
+- Invalid payment details from server
+
+```typescript
+try {
+  await client.get('api', '/endpoint');
+} catch (error) {
+  if (error instanceof PaymentRequiredError) {
+    console.log('Configure a wallet to make paid calls');
+  }
+}
+```
+
+### InsufficientBalanceError
+
+Thrown when the wallet doesn't have enough USDC for the payment.
+
+| Property | Value |
+|----------|-------|
+| `code` | `INSUFFICIENT_BALANCE` |
+| `status` | `402` |
+
+Additional properties:
+- `required: bigint` — Amount needed (USDC wei)
+- `available: bigint` — Current balance (USDC wei)
+
+```typescript
+try {
+  await client.post('api', '/endpoint', { data: 'test' });
+} catch (error) {
+  if (error instanceof InsufficientBalanceError) {
+    console.log(`Need ${error.required}, have ${error.available}`);
+  }
+}
+```
+
+### PaymentFailedError
+
+Thrown when the payment process fails (facilitator error, missing payment token).
+
+| Property | Value |
+|----------|-------|
+| `code` | `PAYMENT_FAILED` |
+| `status` | `402` |
+
+### UnauthorizedError
+
+Thrown when the API key is invalid or missing.
+
+| Property | Value |
+|----------|-------|
+| `code` | `UNAUTHORIZED` |
+| `status` | `401` |
+
+### APINotFoundError
+
+Thrown when the requested API slug doesn't exist.
+
+| Property | Value |
+|----------|-------|
+| `code` | `API_NOT_FOUND` |
+| `status` | `404` |
+
+### RateLimitError
+
+Thrown when rate limit is exceeded.
+
+| Property | Value |
+|----------|-------|
+| `code` | `RATE_LIMITED` |
+| `status` | `429` |
+
+Additional properties:
+- `retryAfter?: number` — Seconds to wait before retrying
+
+<Note>
+  With `autoRetry: true` (default), rate limit errors are automatically retried using the `Retry-After` header.
+</Note>
+
+### NetworkError
+
+Thrown on network-level failures (DNS, connection refused, etc.).
+
+| Property | Value |
+|----------|-------|
+| `code` | `NETWORK_ERROR` |
+| `status` | `0` |
+
+### TimeoutError
+
+Thrown when a request exceeds the configured timeout.
+
+| Property | Value |
+|----------|-------|
+| `code` | `TIMEOUT` |
+| `status` | `0` |
+
+## Error Handling Pattern
+
+```typescript
+import {
+  OpenGrant,
+  PaymentRequiredError,
+  InsufficientBalanceError,
+  UnauthorizedError,
+  RateLimitError,
+  NetworkError,
+} from '@opengrant/sdk';
+
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  privateKey: '0x...',
+});
+
+try {
+  const response = await client.post('my-api', '/v1/process', {
+    input: 'hello',
+  });
+  console.log(response.data);
+} catch (error) {
+  if (error instanceof InsufficientBalanceError) {
+    console.error(`Insufficient balance: need ${error.required}, have ${error.available}`);
+  } else if (error instanceof PaymentRequiredError) {
+    console.error('Payment issue:', error.message);
+  } else if (error instanceof UnauthorizedError) {
+    console.error('Invalid API key');
+  } else if (error instanceof RateLimitError) {
+    console.error(`Rate limited. Retry after ${error.retryAfter}s`);
+  } else if (error instanceof NetworkError) {
+    console.error('Network error:', error.message);
+  } else if (error instanceof OpenGrantError) {
+    console.error(`Error [${error.code}]: ${error.message}`);
+  }
+}
+```
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| `PAYMENT_REQUIRED` | Payment needed but cannot be completed |
+| `INSUFFICIENT_BALANCE` | Wallet USDC balance too low |
+| `PAYMENT_FAILED` | Payment processing failed |
+| `UNAUTHORIZED` | Invalid or missing API key |
+| `API_NOT_FOUND` | API slug not found |
+| `RATE_LIMITED` | Too many requests |
+| `NETWORK_ERROR` | Network-level failure |
+| `TIMEOUT` | Request timed out |
+| `INVALID_CONFIG` | Invalid SDK configuration |
+| `NO_WALLET` | Operation requires a wallet |
+| `API_ERROR` | General API error |

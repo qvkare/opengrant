@@ -1,0 +1,261 @@
+---
+title: "OpenGrant Client"
+description: "API reference for the OpenGrant SDK client class."
+---
+
+## Constructor
+
+```typescript
+const client = new OpenGrant(config: OpenGrantConfig);
+```
+
+Creates a new OpenGrant client. See [SDK Overview](/sdk/overview) for configuration options.
+
+## Methods
+
+### call
+
+The primary method for making API calls. Handles x402 payment flow automatically.
+
+```typescript
+async call<T>(
+  apiSlug: string,
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
+  path: string,
+  options?: CallOptions
+): Promise<APIResponse<T>>
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `apiSlug` | `string` | The API slug (e.g., `"tailwind"`) |
+| `method` | `string` | HTTP method |
+| `path` | `string` | Endpoint path (e.g., `"/v1/generate"`) |
+| `options` | `CallOptions` | Optional call configuration |
+
+**CallOptions:**
+
+```typescript
+interface CallOptions {
+  body?: Record<string, unknown>;      // Request body (POST/PUT/PATCH)
+  params?: Record<string, string>;     // Query parameters
+  headers?: Record<string, string>;    // Additional headers
+  timeout?: number;                    // Override timeout for this request
+  maxPrice?: bigint;                   // Max price willing to pay (USDC wei)
+}
+```
+
+**Returns:** `APIResponse<T>`
+
+```typescript
+interface APIResponse<T> {
+  data: T;                           // Response body
+  status: number;                    // HTTP status code
+  headers: Record<string, string>;   // Response headers
+  payment?: {
+    amount: string;                  // USDC wei paid
+    txHash?: string;                 // On-chain transaction hash
+  };
+}
+```
+
+**Example:**
+
+```typescript
+const response = await client.call<{ result: string }>(
+  'my-api',
+  'POST',
+  '/v1/process',
+  {
+    body: { input: 'hello world' },
+    maxPrice: 1000000n, // Max 1 USDC
+  }
+);
+
+console.log(response.data.result);
+console.log(response.payment?.amount); // Amount paid
+```
+
+### get
+
+Convenience method for GET requests.
+
+```typescript
+async get<T>(
+  apiSlug: string,
+  path: string,
+  options?: Omit<CallOptions, "body">
+): Promise<APIResponse<T>>
+```
+
+**Example:**
+
+```typescript
+const response = await client.get<WeatherData>(
+  'weather',
+  '/v1/forecast',
+  { params: { city: 'Istanbul' } }
+);
+```
+
+### post
+
+Convenience method for POST requests.
+
+```typescript
+async post<T>(
+  apiSlug: string,
+  path: string,
+  body?: Record<string, unknown>,
+  options?: Omit<CallOptions, "body">
+): Promise<APIResponse<T>>
+```
+
+**Example:**
+
+```typescript
+const response = await client.post('tailwind', '/v1/generate', {
+  input: 'A primary button with rounded corners',
+});
+```
+
+### getBalance
+
+Get the wallet's USDC and ETH balance on the configured chain.
+
+```typescript
+async getBalance(): Promise<WalletBalance>
+```
+
+**Returns:**
+
+```typescript
+interface WalletBalance {
+  usdc: string;          // USDC balance in wei
+  eth: string;           // ETH balance in wei (for gas)
+  usdcFormatted: string; // Human-readable USDC balance (e.g., "100.50")
+}
+```
+
+**Example:**
+
+```typescript
+const balance = await client.getBalance();
+console.log(`USDC: $${balance.usdcFormatted}`);
+```
+
+<Warning>
+  Requires a wallet (privateKey or walletClient) to be configured. Throws `OpenGrantError` with code `NO_WALLET` if no wallet is set.
+</Warning>
+
+### getUsage
+
+Get usage statistics for your API key.
+
+```typescript
+async getUsage(period?: "7d" | "30d" | "90d"): Promise<UsageStats>
+```
+
+**Returns:**
+
+```typescript
+interface UsageStats {
+  totalCalls: number;
+  totalSpent: string;       // USDC wei
+  byApi: Array<{
+    apiSlug: string;
+    apiName: string;
+    calls: number;
+    spent: string;
+  }>;
+  daily: Array<{
+    date: string;
+    calls: number;
+    spent: string;
+  }>;
+}
+```
+
+**Example:**
+
+```typescript
+const usage = await client.getUsage('30d');
+console.log(`Total calls: ${usage.totalCalls}`);
+console.log(`Total spent: ${usage.totalSpent}`);
+```
+
+### getAPIInfo
+
+Get information about a specific API.
+
+```typescript
+async getAPIInfo(apiSlug: string): Promise<APIInfo>
+```
+
+**Returns:**
+
+```typescript
+interface APIInfo {
+  slug: string;
+  name: string;
+  description: string;
+  publisher: string;
+  baseUrl: string;
+  endpoints: Array<{
+    path: string;
+    method: string;
+    description: string;
+    pricePerCall: string;
+  }>;
+}
+```
+
+**Example:**
+
+```typescript
+const api = await client.getAPIInfo('tailwind');
+console.log(api.name); // "Tailwind Generator"
+api.endpoints.forEach(e => {
+  console.log(`${e.method} ${e.path} - $${e.pricePerCall}`);
+});
+```
+
+### address
+
+Read-only property that returns the signer's wallet address, or `undefined` if no wallet is configured.
+
+```typescript
+get address(): string | undefined
+```
+
+## Automatic Retry
+
+By default, the SDK retries failed requests with exponential backoff:
+
+- **Rate limits (429)**: Uses the `Retry-After` header if provided
+- **Network errors**: Exponential backoff (1s, 2s, 4s, up to 10s)
+- **Non-retryable errors**: `UnauthorizedError`, `APINotFoundError`, `InsufficientBalanceError`, and `PaymentRequiredError` are never retried
+
+Disable retries:
+
+```typescript
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  autoRetry: false,
+});
+```
+
+## Price Protection
+
+Use `maxPrice` to set a ceiling on per-call spending:
+
+```typescript
+const response = await client.call('expensive-api', 'POST', '/v1/process', {
+  body: { data: 'hello' },
+  maxPrice: 500000n, // Max 0.50 USDC (6 decimals)
+});
+```
+
+If the API charges more than `maxPrice`, a `PaymentRequiredError` is thrown before any payment is made.

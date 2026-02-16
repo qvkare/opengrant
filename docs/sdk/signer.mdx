@@ -1,0 +1,134 @@
+---
+title: "PaymentSigner"
+description: "Sign EIP-3009 USDC payment authorizations for x402 protocol."
+---
+
+The `PaymentSigner` class handles EIP-3009 `TransferWithAuthorization` signatures for USDC payments. It's used internally by the `OpenGrant` client, but can also be used directly for custom payment flows.
+
+## PaymentSigner Class
+
+### Constructor
+
+```typescript
+new PaymentSigner(
+  walletClientOrPrivateKey: WalletClient | `0x${string}`,
+  chainId?: number  // default: 8453 (Base)
+)
+```
+
+Creates a signer from either a private key or a viem `WalletClient`.
+
+```typescript
+import { PaymentSigner } from '@opengrant/sdk';
+
+// From private key
+const signer = new PaymentSigner('0xabc123...', 8453);
+
+// From wallet client
+const signer = new PaymentSigner(walletClient, 42161);
+```
+
+### signPayment
+
+Signs an EIP-3009 `TransferWithAuthorization` for a given payment.
+
+```typescript
+async signPayment(payment: PaymentDetails): Promise<PaymentAuthorization>
+```
+
+**PaymentDetails:**
+
+```typescript
+interface PaymentDetails {
+  version: string;      // x402 protocol version
+  network: string;      // e.g., "eip155:8453"
+  amount: string;       // USDC wei amount
+  token: string;        // USDC contract address
+  recipient: string;    // Payment recipient address
+  facilitator: string;  // Facilitator URL
+  description: string;
+  resource: string;     // API endpoint being accessed
+  validUntil: number;   // Expiration timestamp
+  nonce: string;        // Unique nonce (bytes32)
+}
+```
+
+**PaymentAuthorization:**
+
+```typescript
+interface PaymentAuthorization {
+  signature: string;   // EIP-712 signature
+  from: string;        // Payer address
+  to: string;          // Recipient address
+  value: string;       // USDC wei
+  validAfter: number;  // Always 0 (valid immediately)
+  validBefore: number; // Expiration timestamp
+  nonce: string;       // bytes32 nonce
+}
+```
+
+### signMessage
+
+Sign an arbitrary message (used for wallet-based authentication).
+
+```typescript
+async signMessage(message: string): Promise<string>
+```
+
+### address
+
+Read-only property returning the signer's Ethereum address.
+
+```typescript
+get address(): string
+```
+
+## Factory Functions
+
+### createSigner
+
+Create a `PaymentSigner` from a private key.
+
+```typescript
+import { createSigner } from '@opengrant/sdk';
+
+const signer = createSigner('0xabc123...', 42161); // Arbitrum
+```
+
+### createSignerFromWallet
+
+Create a `PaymentSigner` from a viem `WalletClient`.
+
+```typescript
+import { createSignerFromWallet } from '@opengrant/sdk';
+
+const signer = createSignerFromWallet(walletClient, 8453); // Base
+```
+
+## EIP-3009 Details
+
+The signer creates EIP-712 typed data signatures for USDC's `transferWithAuthorization` function. The EIP-712 domain is chain-specific:
+
+```typescript
+{
+  name: "USD Coin",
+  version: "2",
+  chainId: 8453,            // Chain-specific
+  verifyingContract: "0x..."  // Chain-specific USDC address
+}
+```
+
+The typed data structure:
+
+```typescript
+TransferWithAuthorization: [
+  { name: "from", type: "address" },
+  { name: "to", type: "address" },
+  { name: "value", type: "uint256" },
+  { name: "validAfter", type: "uint256" },
+  { name: "validBefore", type: "uint256" },
+  { name: "nonce", type: "bytes32" },
+]
+```
+
+This means the consumer never needs to approve USDC spending upfront. Each payment is independently authorized with a unique nonce.

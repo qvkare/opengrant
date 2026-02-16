@@ -201,7 +201,6 @@ opengrant publish create-api \
 1. Chainlink CRE aggregates usage records every 5 minutes
 2. Payments are batched and distributed to Publisher Vaults
 3. Publishers can withdraw from their vaults anytime
-4. Platform fee (5%) is automatically deducted
 
 ### Open Source Funding Flow
 

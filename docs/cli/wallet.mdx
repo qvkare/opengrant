@@ -1,0 +1,96 @@
+---
+title: "Wallet"
+description: "Check your USDC balance and fund your wallet."
+---
+
+## balance
+
+Check your USDC and ETH balance on the configured chain.
+
+```bash
+opengrant balance
+```
+
+**Output:**
+
+```
+Wallet Balance:
+  USDC: $150.00
+  ETH:  0.0542 ETH (for gas)
+  Chain: Base (8453)
+```
+
+## fund
+
+Fund your wallet with USDC for API payments.
+
+```bash
+opengrant fund <amount> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `amount` | Amount of USDC to add |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--headless` | Use direct transfer instead of browser-based onramp |
+
+**Example:**
+
+```bash
+# Fund $50 USDC
+opengrant fund 50
+
+# Direct transfer (headless)
+opengrant fund 100 --headless
+```
+
+The fund command supports:
+- **Browser mode** (default): Opens an onramp for purchasing USDC
+- **Headless mode**: Provides a wallet address to send USDC to directly, then records the on-chain transaction
+
+<Note>
+  The fund endpoint verifies on-chain transaction receipts to prevent fraud. The transaction must be confirmed on-chain, the recipient must match, and the transaction hash must be unique.
+</Note>
+
+## stats
+
+View your API usage statistics.
+
+```bash
+opengrant stats [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-a, --api <slug>` | Filter by specific API |
+| `-p, --period <period>` | Time period: `7d`, `30d`, `90d` (default: `30d`) |
+
+**Example:**
+
+```bash
+# Overall stats for last 30 days
+opengrant stats
+
+# Stats for a specific API over 7 days
+opengrant stats --api tailwind --period 7d
+```
+
+**Output:**
+
+```
+Usage Statistics (30d):
+  Total calls:  1,234
+  Total spent:  $45.67
+
+  By API:
+    tailwind    820 calls    $32.10
+    weather     414 calls    $13.57
+```

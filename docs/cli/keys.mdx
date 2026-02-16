@@ -1,0 +1,96 @@
+---
+title: "API Keys"
+description: "Create, list, and revoke API keys for authenticating SDK and API calls."
+---
+
+## keys create
+
+Create a new API key for use with the SDK or direct API calls.
+
+```bash
+opengrant keys create [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-n, --name <name>` | Name for the API key |
+
+**Example:**
+
+```bash
+opengrant keys create --name "my-app"
+```
+
+**Output:**
+
+```
+API Key created successfully!
+  Name: my-app
+  Key: og_live_abc123...
+
+  Save this key - it won't be shown again.
+```
+
+<Warning>
+  The full API key is only shown once at creation time. Store it securely.
+</Warning>
+
+## keys list
+
+List all API keys associated with your account.
+
+```bash
+opengrant keys list
+```
+
+**Output:**
+
+```
+Your API Keys:
+  my-app          og_live_abc1...  Active   Created 2026-01-15
+  production      og_live_def4...  Active   Created 2026-02-01
+  old-key         og_live_ghi7...  Revoked  Created 2025-12-10
+```
+
+## keys revoke
+
+Revoke an API key. Revoked keys cannot be used for authentication.
+
+```bash
+opengrant keys revoke <keyId>
+```
+
+**Example:**
+
+```bash
+opengrant keys revoke abc123
+```
+
+**Output:**
+
+```
+API key revoked successfully.
+```
+
+<Note>
+  Revoking a key is permanent. Any applications using the key will immediately lose access.
+</Note>
+
+## Using API Keys
+
+API keys are used in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer og_live_xxx" \
+  https://api.opengrant.dev/v1/consumer/apis
+```
+
+Or with the SDK:
+
+```typescript
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+});
+```

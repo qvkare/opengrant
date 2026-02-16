@@ -1,0 +1,78 @@
+---
+title: "Contracts Overview"
+description: "Smart contract architecture for the OpenGrant protocol: Registry, Payments, Escrow, Vaults, and GRANT token."
+---
+
+## Architecture
+
+OpenGrant uses a modular smart contract architecture built with Foundry on multi-chain EVM:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    OpenGrantRegistry                     │
+│       (UUPS Upgradeable, publishers + APIs)              │
+│              ↕                                           │
+│       OpenGrantPayments ←────→ FeeDiscountOracle         │
+│     (Payment routing, fees)     (GRANT staking tiers)    │
+│              │                        ↑                  │
+│              ↓                        │                  │
+│       PublisherVault              GRANTStaking            │
+│   (ERC-4626 + PaymentSplitter)  (Stake for discounts)    │
+│              ↑                        ↑                  │
+│              │                        │                  │
+│       OpenGrantFactory            GRANTToken              │
+│     (Deploy publisher vaults)   (Governance, ERC-20)     │
+│                                                          │
+│       OpenGrantEscrow                                    │
+│   (Trustless USDC escrow for open source funding)        │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Contracts
+
+| Contract | Description |
+|----------|-------------|
+| [OpenGrantRegistry](/contracts/registry) | UUPS upgradeable registry for publishers, APIs, and endpoints |
+| [OpenGrantPayments](/contracts/payments) | Payment routing, settlement, and fee deduction |
+| [OpenGrantEscrow](/contracts/escrow) | Trustless USDC escrow for open source project funding |
+| [PublisherVault](/contracts/payments) | ERC-4626 vault with PaymentSplitter for revenue distribution |
+| [OpenGrantFactory](/contracts/payments) | Factory for deploying publisher vaults |
+| [GRANTToken + GRANTStaking](/contracts/token) | Platform governance token and staking for fee discounts |
+| [FeeDiscountOracle](/contracts/token) | Fee tier oracle based on GRANT staking amounts |
+
+## Key Design Decisions
+
+### UUPS Upgradeable (Registry)
+
+The Registry uses UUPS (Universal Upgradeable Proxy Standard) for upgradeability, allowing the publisher/API schema to evolve without losing state.
+
+### EIP-3009 Payments
+
+USDC's `transferWithAuthorization` (EIP-3009) enables gasless payments from consumers. The consumer signs an authorization off-chain, and the facilitator executes the transfer.
+
+### ECDSA Claim Signatures
+
+Escrow claims use backend-signed ECDSA authorizations. The backend verifies GitHub ownership and signs a `Claim(repoHash, wallet, nonce)` message. The maintainer submits this signature on-chain.
+
+### Fee Oracle Pattern
+
+The FeeDiscountOracle separates fee calculation from payment logic. It queries the GRANTStaking contract to determine fee tiers based on the consumer's staked GRANT amount.
+
+## Development
+
+Contracts are built with [Foundry](https://book.getfoundry.sh/):
+
+```bash
+cd packages/contracts
+
+# Build
+forge build
+
+# Test (232 tests)
+forge test -vvv
+
+# Deploy
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
+```
+
+See [Deployment](/contracts/deployment) for chain-specific addresses and deployment instructions.

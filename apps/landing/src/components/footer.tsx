@@ -76,7 +76,7 @@ export function Footer() {
             <ul className="space-y-3 text-gray-500">
               <li>
                 <a
-                  href="https://github.com/qvkare/opengrant#readme"
+                  href="https://docs.opengrant.dev"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-black transition-colors"
@@ -96,7 +96,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://github.com/qvkare/opengrant"
+                  href="https://docs.opengrant.dev/api-reference/overview"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-black transition-colors"

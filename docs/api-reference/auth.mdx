@@ -1,0 +1,169 @@
+---
+title: "Authentication"
+description: "Login, token verification, and CLI authentication endpoints."
+---
+
+## POST /v1/auth/login
+
+Web-based login using wallet signature.
+
+**Rate limit:** 20 req/min per IP
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | string | Yes | Ethereum wallet address |
+| `signature` | string | Yes | Signed message |
+| `message` | string | Yes | Message that was signed (must include timestamp within 60s) |
+| `type` | string | No | Account type: `"consumer"` (default) or `"publisher"` |
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+    "signature": "0x...",
+    "message": "Sign in to OpenGrant\nTimestamp: 1708000000000",
+    "type": "consumer"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+  "type": "consumer"
+}
+```
+
+## GET /v1/auth/verify
+
+Verify that a JWT token is valid.
+
+**Headers:** `Authorization: Bearer <token>`
+
+```bash
+curl https://api.opengrant.dev/v1/auth/verify \
+  -H "Authorization: Bearer eyJhbG..."
+```
+
+**Response:**
+
+```json
+{
+  "valid": true,
+  "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+  "type": "consumer"
+}
+```
+
+## POST /v1/auth/refresh
+
+Refresh an expiring JWT token.
+
+**Headers:** `Authorization: Bearer <token>`
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/auth/refresh \
+  -H "Authorization: Bearer eyJhbG..."
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+## GET /v1/auth/me
+
+Get the current authenticated user's profile.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+
+```json
+{
+  "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+  "type": "consumer"
+}
+```
+
+## CLI Authentication
+
+### POST /v1/auth/cli/init
+
+Initialize a CLI authentication session. Returns a session ID and URL for browser-based auth.
+
+**Response:**
+
+```json
+{
+  "sessionId": "abc123",
+  "url": "https://app.opengrant.dev/auth/cli?session=abc123"
+}
+```
+
+### GET /v1/auth/cli/poll
+
+Poll for CLI auth completion.
+
+**Query params:** `session` — Session ID from `/cli/init`
+
+**Response (pending):**
+
+```json
+{
+  "status": "pending"
+}
+```
+
+**Response (complete):**
+
+```json
+{
+  "status": "complete",
+  "token": "eyJhbG...",
+  "wallet": "0x742d..."
+}
+```
+
+### POST /v1/auth/cli/complete
+
+Complete CLI auth from the web side.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sessionId` | string | Yes | Session ID |
+| `walletAddress` | string | Yes | Wallet address |
+| `signature` | string | Yes | Signed message |
+| `message` | string | Yes | Original message |
+
+### POST /v1/auth/cli/verify
+
+Headless CLI authentication with direct signature verification.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | string | Yes | Wallet address |
+| `signature` | string | Yes | Signed message |
+| `message` | string | Yes | Message that was signed |
+| `type` | string | No | `"consumer"` (default) or `"publisher"` |
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbG...",
+  "wallet": "0x742d..."
+}
+```

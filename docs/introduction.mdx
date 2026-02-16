@@ -1,0 +1,68 @@
+---
+title: "Introduction"
+description: "OpenGrant is a crypto-native API marketplace and open source funding platform using x402 micropayments, on-chain USDC escrow, and Chainlink CRE."
+---
+
+## What is OpenGrant?
+
+OpenGrant enables open-source projects to monetize their APIs through HTTP-native micropayments **and** receive direct funding through trustless on-chain escrow.
+
+Built on multi-chain EVM (Base, Arbitrum, Linea, Polygon) with USDC, it provides instant, low-cost payments with 2-second finality.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="x402 Protocol" icon="money-bill-wave">
+    HTTP-native micropayments via the 402 Payment Required status code. Pay per API call with USDC.
+  </Card>
+  <Card title="Open Source Funding" icon="hand-holding-heart">
+    USDC escrow for direct donations and dependency-based stack funding.
+  </Card>
+  <Card title="Multi-Chain" icon="link">
+    Supports Ethereum, Base, Arbitrum, Linea, and Polygon — both mainnets and testnets.
+  </Card>
+  <Card title="Trustless Escrow" icon="lock">
+    On-chain USDC escrow with ECDSA-signed claims and 365-day refund protection.
+  </Card>
+  <Card title="Stack Fund" icon="layer-group">
+    Upload package.json, Cargo.toml, or go.mod to fund your entire dependency tree.
+  </Card>
+  <Card title="Publisher Vaults" icon="vault">
+    ERC-4626 + PaymentSplitter for automated revenue distribution.
+  </Card>
+</CardGroup>
+
+## Who is it for?
+
+### API Consumers
+
+Use the SDK or CLI to discover and call monetized APIs. Payments happen automatically through the x402 protocol — no subscriptions, no invoices, just pay-per-call with USDC.
+
+### API Publishers
+
+Register your API, set per-endpoint pricing, and start earning USDC. Revenue is distributed through on-chain Publisher Vaults with transparent settlement.
+
+### Open Source Maintainers
+
+Receive donations through trustless escrow. Verify your GitHub identity, and claim accumulated funds directly to your wallet.
+
+### Open Source Supporters
+
+Fund individual projects or your entire dependency tree with a single transaction. Stack Fund analyzes your `package.json` and distributes funds based on dependency importance.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes with the SDK or CLI.
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Understand how x402 payments, escrow, and settlements work.
+  </Card>
+  <Card title="SDK Reference" icon="code" href="/sdk/overview">
+    Full TypeScript SDK documentation.
+  </Card>
+  <Card title="API Reference" icon="server" href="/api-reference/overview">
+    Complete REST API documentation.
+  </Card>
+</CardGroup>

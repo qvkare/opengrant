@@ -1,0 +1,210 @@
+---
+title: "OpenGrantPayments"
+description: "Payment routing, settlement, and fee management with publisher vault distribution."
+---
+
+The Payments contract handles all USDC payment routing, fee deduction, and distribution to publisher vaults.
+
+## Overview
+
+- **Payment Token**: USDC (ERC-20, 6 decimals)
+- **Platform Fee**: 0-10% (configurable, default 5%)
+- **Fee Discounts**: Via FeeDiscountOracle (GRANT staking tiers)
+- **Settlement**: Batch distribution to publisher vaults
+
+## Payment Recording
+
+### recordPaymentWithDeposit
+
+Record a payment and atomically transfer USDC from the caller.
+
+```solidity
+function recordPaymentWithDeposit(
+    bytes32 apiId,
+    address consumer,
+    uint256 amount,
+    bytes32 x402TxHash
+) external
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `apiId` | bytes32 | API identifier |
+| `consumer` | address | Consumer wallet |
+| `amount` | uint256 | USDC amount (6 decimals) |
+| `x402TxHash` | bytes32 | x402 transaction hash for deduplication |
+
+<Note>
+  Requires prior USDC approval to the Payments contract address.
+</Note>
+
+### recordPayment
+
+Record a payment without USDC transfer (legacy, used when USDC is already in the contract).
+
+```solidity
+function recordPayment(
+    bytes32 apiId,
+    address consumer,
+    uint256 amount,
+    bytes32 x402TxHash
+) external
+```
+
+## Distribution
+
+### distributeToVault
+
+Distribute accumulated payments to a publisher's vault, deducting the platform fee.
+
+```solidity
+function distributeToVault(bytes32 apiId, uint256 amount) external
+```
+
+The fee is calculated as:
+
+```
+effectiveFee = platformFeeBPS - discountFromOracle
+platformFee = amount * effectiveFee / 10000
+publisherAmount = amount - platformFee
+stakerReward = platformFee * stakerSplitBPS / 10000
+```
+
+### batchDistribute
+
+Distribute to multiple publisher vaults in a single transaction.
+
+```solidity
+function batchDistribute(
+    bytes32[] calldata apiIds,
+    uint256[] calldata amounts
+) external
+```
+
+Maximum 100 distributions per batch.
+
+## Fee Configuration
+
+### Platform Fee
+
+```solidity
+function setPlatformFee(uint256 _feeBPS) external onlyOwner
+```
+
+- Range: 0-1000 BPS (0-10%)
+- Default: 500 BPS (5%)
+
+### Fee Discount Oracle
+
+```solidity
+function setFeeDiscountOracle(address _oracle) external onlyOwner
+```
+
+The oracle returns an effective fee BPS based on the publisher's GRANT staking tier:
+
+| Staked GRANT | Discount |
+|-------------|----------|
+| 10,000+ | 30% off fees |
+| 50,000+ | 50% off fees |
+| 200,000+ | 70% off fees |
+| 1,000,000+ | 90% off fees |
+
+### Staker Revenue Split
+
+```solidity
+function setStakerSplitBPS(uint256 _splitBPS) external onlyOwner
+```
+
+- Default: 3000 BPS (30% of platform fees go to stakers)
+- Maximum: 5000 BPS (50%)
+
+## Settlement Marking
+
+After distributing to vaults, mark individual payment records as settled for off-chain auditability:
+
+```solidity
+function markPaymentsSettled(bytes32[] calldata txHashes) external onlyAuthorized
+```
+
+Maximum 100 records per batch.
+
+## View Functions
+
+```solidity
+// Get pending earnings for a publisher
+function getPendingEarnings(address publisher) external view returns (uint256)
+
+// Get total pending earnings across all publishers
+function getTotalPendingEarnings() external view returns (uint256)
+
+// Get full accounting for a publisher
+function getPublisherAccounting(address publisher)
+    external view returns (uint256 deposited, uint256 pending, uint256 distributed)
+
+// Get total platform fees collected
+function getTotalPlatformFees() external view returns (uint256)
+
+// Get current platform fee in basis points
+function getPlatformFeeBPS() external view returns (uint256)
+```
+
+## Admin Functions
+
+```solidity
+function setAuthorizedCaller(address caller, bool authorized) external onlyOwner
+function setPlatformFeeReceiver(address receiver) external onlyOwner
+function setStakingRewardPool(address pool) external onlyOwner
+function setRegistry(address _registry) external onlyOwner
+function setLegacyRecordPayment(bool enabled) external onlyOwner
+function writeOffPendingEarnings(address publisher, uint256 amount) external onlyOwner
+function emergencyWithdraw(address token, uint256 amount, address to) external onlyOwner
+function pause() external onlyOwner
+function unpause() external onlyOwner
+```
+
+<Warning>
+  `emergencyWithdraw` cannot withdraw USDC — only accidentally sent non-USDC tokens.
+  `writeOffPendingEarnings` is for correcting inflated records, not for withdrawing funds.
+</Warning>
+
+## Publisher Vault
+
+Each publisher has an ERC-4626 vault that receives distributed payments:
+
+```solidity
+// PublisherVault inherits ERC-4626 + PaymentSplitter
+function deposit(uint256 assets, address receiver) external returns (uint256 shares)
+function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares)
+```
+
+Publishers can add multiple payees (e.g., team members) who share revenue according to configured shares.
+
+## Factory
+
+```solidity
+// OpenGrantFactory
+function createVault(
+    address[] calldata payees,
+    uint256[] calldata shares
+) external returns (address vault)
+```
+
+Creates a new PublisherVault for the calling publisher.
+
+## Events
+
+```solidity
+event PaymentReceived(bytes32 indexed apiId, address indexed consumer, uint256 amount, bytes32 x402TxHash)
+event PaymentDepositedAndRecorded(bytes32 indexed apiId, address indexed consumer, uint256 amount, bytes32 x402TxHash, address indexed depositor)
+event PaymentDistributed(bytes32 indexed apiId, address indexed publisher, uint256 grossAmount, uint256 platformFee, uint256 netAmount)
+event BatchSettled(bytes32[] apiIds, uint256[] amounts, uint256 totalPlatformFee)
+event PaymentsMarkedSettled(bytes32[] txHashes)
+event StakingPoolFunded(address indexed stakingPool, uint256 amount)
+event X402AmountBound(bytes32 indexed x402TxHash, uint256 amount)
+event PlatformFeeUpdated(uint256 oldFee, uint256 newFee)
+event PlatformFeeReceiverUpdated(address oldReceiver, address newReceiver)
+event AuthorizedCallerUpdated(address indexed caller, bool authorized)
+event RegistryUpdated(address indexed oldRegistry, address indexed newRegistry)
+event LegacyRecordPaymentToggled(bool enabled)
+event PendingEarningsWrittenOff(address indexed publisher, uint256 amount, uint256 remaining)
+```

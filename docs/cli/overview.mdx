@@ -1,0 +1,79 @@
+---
+title: "CLI Overview"
+description: "Install and use the OpenGrant CLI for managing API keys, wallets, and publishing APIs."
+---
+
+## Installation
+
+```bash
+npm install -g @opengrant/cli
+```
+
+## Usage
+
+```bash
+opengrant <command> [options]
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `login` | Log in to your OpenGrant account |
+| `logout` | Log out of your account |
+| `whoami` | Show current logged in user |
+| `keys create` | Create a new API key |
+| `keys list` | List all API keys |
+| `keys revoke <id>` | Revoke an API key |
+| `balance` | Check your USDC balance |
+| `fund <amount>` | Fund your wallet with USDC |
+| `stats` | View usage statistics |
+| `init` | Initialize OpenGrant in current project |
+| `publish verify-github` | Verify your GitHub identity |
+| `publish create-api` | Register a new API |
+| `publish activate <slug>` | Activate an API |
+| `config get <key>` | Get a config value |
+| `config set <key> <value>` | Set a config value |
+| `config list` | List all config values |
+
+## Authentication
+
+The CLI uses wallet-based authentication. On login, it:
+
+1. Generates or uses your private key to sign a challenge message
+2. Sends the signed message to the API for verification
+3. Stores the JWT token locally (with file permissions set to `0600`)
+
+```bash
+# Interactive login (opens browser)
+opengrant login
+
+# Headless login (private key input in terminal)
+opengrant login --headless
+```
+
+## Configuration
+
+The CLI stores credentials in `~/.opengrant/credentials.json` with restricted file permissions (readable only by you).
+
+Project-level configuration is stored in `.opengrant.json` in your project root, created by `opengrant init`.
+
+## Examples
+
+```bash
+# Full workflow: login, create key, check balance
+opengrant login
+opengrant keys create --name "production"
+opengrant balance
+
+# Publisher workflow: verify GitHub, create API, activate
+opengrant publish verify-github --token ghp_xxx
+opengrant publish create-api \
+  --name "My API" \
+  --slug "my-api" \
+  --url "https://api.example.com"
+opengrant publish activate my-api
+
+# View usage for a specific API over 7 days
+opengrant stats --api my-api --period 7d
+```

@@ -1,0 +1,159 @@
+---
+title: "API Overview"
+description: "Authentication, base URL, headers, and conventions for the OpenGrant REST API."
+---
+
+## Base URL
+
+```
+https://api.opengrant.dev
+```
+
+All API endpoints are prefixed with `/v1/`.
+
+## Authentication
+
+Most endpoints require a JWT token obtained through wallet-based authentication.
+
+### Obtaining a Token
+
+**Web login:**
+
+```bash
+POST /v1/auth/login
+Content-Type: application/json
+
+{
+  "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+  "signature": "0x...",
+  "message": "Sign in to OpenGrant\nTimestamp: 1708000000000",
+  "type": "consumer"  // or "publisher"
+}
+```
+
+**CLI login:**
+
+```bash
+POST /v1/auth/cli/verify
+Content-Type: application/json
+
+{
+  "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+  "signature": "0x...",
+  "message": "Sign in to OpenGrant\nTimestamp: 1708000000000",
+  "type": "consumer"
+}
+```
+
+### Using the Token
+
+Include the JWT in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer <jwt_token>" \
+  https://api.opengrant.dev/v1/consumer/profile
+```
+
+### API Key Authentication
+
+For SDK and programmatic access, use an API key:
+
+```bash
+curl -H "Authorization: Bearer og_live_xxx" \
+  https://api.opengrant.dev/v1/apis
+```
+
+API keys are created via `POST /v1/consumer/keys` or the CLI (`opengrant keys create`).
+
+## Common Headers
+
+| Header | Description |
+|--------|-------------|
+| `Authorization` | `Bearer <jwt_token>` or `Bearer <api_key>` |
+| `Content-Type` | `application/json` |
+| `X-GitHub-Token` | GitHub PAT (for GitHub-related operations) |
+| `X-402-Version` | x402 protocol version (SDK sets this automatically) |
+| `X-402-Payment-Token` | Payment token (for paid API calls) |
+
+## Response Format
+
+All responses are JSON. Successful responses return the data directly:
+
+```json
+{
+  "id": "abc123",
+  "name": "My API",
+  "slug": "my-api"
+}
+```
+
+List endpoints return paginated results:
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "total": 42
+  }
+}
+```
+
+## Error Responses
+
+Errors follow a consistent format:
+
+```json
+{
+  "error": "Human-readable error message"
+}
+```
+
+### HTTP Status Codes
+
+| Status | Description |
+|--------|-------------|
+| `200` | Success |
+| `201` | Created |
+| `400` | Bad request (validation error) |
+| `401` | Unauthorized (invalid/missing token) |
+| `402` | Payment required |
+| `403` | Forbidden (insufficient permissions) |
+| `404` | Not found |
+| `409` | Conflict (duplicate resource) |
+| `429` | Rate limit exceeded |
+| `500` | Internal server error |
+
+## Rate Limits
+
+| Endpoint Group | Limit |
+|---------------|-------|
+| Auth endpoints | 20 req/min per IP |
+| GitHub verify | 5 req/min |
+| GitHub repos | 20 req/min |
+| General API | Standard rate limiting |
+
+Rate-limited responses include a `Retry-After` header.
+
+## Pagination
+
+List endpoints support `limit` and `offset` query parameters:
+
+```bash
+GET /v1/consumer/usage?limit=50&offset=100
+```
+
+- `limit`: Items per page (default varies, max 100-1000 depending on endpoint)
+- `offset`: Number of items to skip (minimum 0)
+
+## Route Groups
+
+| Prefix | Description | Auth Required |
+|--------|-------------|---------------|
+| `/v1/auth/*` | Authentication | No |
+| `/v1/consumer/*` | Consumer operations | Yes (consumer) |
+| `/v1/publisher/*` | Publisher operations | Yes (publisher) |
+| `/v1/apis/*` | API discovery | Partial |
+| `/v1/fund/*` | Funding operations | Partial |
+| `/proxy/*` | API proxy | Yes (API key) |

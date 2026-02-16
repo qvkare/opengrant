@@ -1,0 +1,194 @@
+---
+title: "Consumer"
+description: "Manage your consumer profile, API keys, usage stats, and wallet balance."
+---
+
+All consumer endpoints require authentication with a consumer JWT token.
+
+**Base path:** `/v1/consumer`
+
+## GET /v1/consumer/profile
+
+Get the current consumer's profile.
+
+```bash
+curl https://api.opengrant.dev/v1/consumer/profile \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "id": "abc123",
+  "wallet": "0x742d...",
+  "name": "Alice",
+  "email": "alice@example.com",
+  "createdAt": "2026-01-15T00:00:00Z"
+}
+```
+
+## PUT /v1/consumer/profile
+
+Update consumer profile.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | Display name |
+| `email` | string | No | Email address |
+| `settings` | object | No | Profile settings |
+
+## GET /v1/consumer/stats
+
+Get usage statistics.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `period` | string | `"30d"` | Time period: `7d`, `30d`, `90d` |
+| `apiId` | string | - | Filter by API ID |
+| `apiSlug` | string | - | Filter by API slug |
+
+**Response:**
+
+```json
+{
+  "totalCalls": 1234,
+  "totalSpent": "45670000",
+  "byApi": [
+    {
+      "apiSlug": "tailwind",
+      "apiName": "Tailwind Generator",
+      "calls": 820,
+      "spent": "32100000"
+    }
+  ],
+  "daily": [
+    { "date": "2026-02-01", "calls": 45, "spent": "1800000" }
+  ]
+}
+```
+
+## GET /v1/consumer/usage
+
+Get recent usage records.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | number | `50` | Items per page (max 1000) |
+| `offset` | number | `0` | Skip items |
+| `apiId` | string | - | Filter by API ID |
+
+## POST /v1/consumer/keys
+
+Create a new API key.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Key name |
+| `allowedApis` | string[] | No | Restrict to specific API slugs |
+| `expiresAt` | string | No | Expiration date (ISO 8601) |
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/consumer/keys \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "production-key"}'
+```
+
+**Response:**
+
+```json
+{
+  "id": "key_abc123",
+  "name": "production-key",
+  "key": "og_live_xxx...",
+  "createdAt": "2026-02-01T00:00:00Z"
+}
+```
+
+<Warning>
+  The full API key is only returned once at creation time. Store it securely.
+</Warning>
+
+## GET /v1/consumer/keys
+
+List all API keys.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "key_abc123",
+    "name": "production-key",
+    "prefix": "og_live_xxx",
+    "isActive": true,
+    "createdAt": "2026-02-01T00:00:00Z"
+  }
+]
+```
+
+## PUT /v1/consumer/keys/:keyId
+
+Update an API key.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New key name |
+| `allowedApis` | string[] | No | Update allowed APIs |
+| `isActive` | boolean | No | Enable/disable the key |
+
+## DELETE /v1/consumer/keys/:keyId
+
+Revoke an API key. This action is permanent.
+
+```bash
+curl -X DELETE https://api.opengrant.dev/v1/consumer/keys/key_abc123 \
+  -H "Authorization: Bearer <token>"
+```
+
+## GET /v1/consumer/payments
+
+Get payment history.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | number | `50` | Items per page (max 1000) |
+| `offset` | number | `0` | Skip items |
+| `apiId` | string | - | Filter by API ID |
+
+## GET /v1/consumer/balance
+
+Get wallet balance (USDC, ETH, and credit balance).
+
+```bash
+curl https://api.opengrant.dev/v1/consumer/balance \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "usdc": { "raw": "150000000", "formatted": "150.00" },
+  "eth": { "raw": "54200000000000000", "formatted": "0.0542" },
+  "credit": "25000000"
+}
+```
+
+## POST /v1/consumer/credits/add
+
+Add credit balance from an on-chain USDC transfer.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `amount` | string | Yes | USDC amount |
+| `txHash` | string | Yes | On-chain transaction hash |
+
+The transaction is verified on-chain before credits are added. The transaction hash must be unique (no double-spending).

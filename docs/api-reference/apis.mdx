@@ -1,0 +1,157 @@
+---
+title: "APIs"
+description: "Discover APIs, view endpoints, and manage API registrations."
+---
+
+**Base path:** `/v1/apis`
+
+## GET /v1/apis
+
+List all active APIs. **Public — no authentication required.**
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `category` | string | - | Filter by category |
+| `limit` | number | `20` | Items per page (max 1000) |
+| `offset` | number | `0` | Skip items |
+
+```bash
+curl https://api.opengrant.dev/v1/apis?limit=10
+```
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "api_abc123",
+      "name": "Tailwind Generator",
+      "slug": "tailwind",
+      "description": "Generate Tailwind CSS classes from natural language",
+      "publisher": "Alice",
+      "category": "ai",
+      "status": "active"
+    }
+  ],
+  "pagination": {
+    "limit": 10,
+    "offset": 0,
+    "total": 42
+  }
+}
+```
+
+## GET /v1/apis/:slug
+
+Get API details by slug. **Public — no authentication required.**
+
+```bash
+curl https://api.opengrant.dev/v1/apis/tailwind
+```
+
+**Response:**
+
+```json
+{
+  "id": "api_abc123",
+  "name": "Tailwind Generator",
+  "slug": "tailwind",
+  "description": "Generate Tailwind CSS classes from natural language",
+  "baseUrl": "https://api.tailwind.example.com",
+  "publisher": "Alice",
+  "category": "ai",
+  "documentationUrl": "https://docs.tailwind.example.com",
+  "endpoints": [
+    {
+      "id": "ep_123",
+      "path": "/v1/generate",
+      "method": "POST",
+      "description": "Generate Tailwind classes",
+      "pricePerCall": "0.001"
+    }
+  ]
+}
+```
+
+## GET /v1/apis/:slug/endpoints
+
+Get API endpoints by slug. **Public — no authentication required.**
+
+```bash
+curl https://api.opengrant.dev/v1/apis/tailwind/endpoints
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": "ep_123",
+    "path": "/v1/generate",
+    "method": "POST",
+    "description": "Generate Tailwind classes",
+    "pricePerCall": "0.001",
+    "rateLimitPerMinute": 60
+  }
+]
+```
+
+## POST /v1/apis
+
+Create a new API. **Requires publisher authentication.**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | API name |
+| `slug` | string | Yes | URL slug (unique, lowercase, alphanumeric + hyphens) |
+| `description` | string | Yes | API description |
+| `baseUrl` | string | Yes | API base URL |
+| `category` | string | No | Category |
+| `tags` | string[] | No | Tags |
+| `documentationUrl` | string | No | Documentation URL |
+| `logoUrl` | string | No | Logo URL |
+
+## PUT /v1/apis/:id
+
+Update an API. **Requires publisher authentication (owner only).**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | API name |
+| `description` | string | Description |
+| `baseUrl` | string | Base URL |
+| `documentationUrl` | string | Docs URL |
+| `logoUrl` | string | Logo URL |
+| `category` | string | Category |
+| `tags` | string[] | Tags |
+
+## POST /v1/apis/:id/publish
+
+Publish (activate) an API. **Requires publisher authentication (owner only).**
+
+## DELETE /v1/apis/:id
+
+Soft-delete an API. **Requires publisher authentication (owner only).**
+
+## POST /v1/apis/:id/endpoints
+
+Add an endpoint to an API. **Requires publisher authentication (owner only).**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Endpoint path (e.g., `/v1/generate`) |
+| `method` | string | Yes | HTTP method (`GET`, `POST`, etc.) |
+| `description` | string | No | Description |
+| `pricePerCall` | string | No | USDC price per call (e.g., `"0.001"`) |
+| `rateLimitPerMinute` | number | No | Rate limit per minute |
+| `rateLimitPerHour` | number | No | Rate limit per hour |
+| `rateLimitPerDay` | number | No | Rate limit per day |
+| `requestSchema` | object | No | JSON Schema for request body |
+| `responseSchema` | object | No | JSON Schema for response body |
+
+<Note>
+  Price values must be non-negative. The API validates that prices are >= 0.
+</Note>

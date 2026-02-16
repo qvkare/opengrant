@@ -63,7 +63,7 @@ export function Header() {
             Features
           </a>
           <a
-            href="https://github.com/qvkare/opengrant#readme"
+            href="https://docs.opengrant.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-black transition-colors"

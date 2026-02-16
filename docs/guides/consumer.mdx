@@ -1,0 +1,144 @@
+---
+title: "Consumer Guide"
+description: "How to discover APIs, make paid calls, and manage your API usage as a consumer."
+---
+
+## Getting Started as a Consumer
+
+As a consumer, you use OpenGrant to discover and call monetized APIs. Payments happen automatically through the x402 protocol using USDC.
+
+### 1. Create an Account
+
+Sign in via the [web app](https://app.opengrant.dev) using your wallet (MetaMask, Coinbase Wallet, or social login via Particle Network). Choose "Consumer" as your account type.
+
+Or use the CLI:
+
+```bash
+npm install -g @opengrant/cli
+opengrant login
+```
+
+### 2. Create an API Key
+
+API keys authenticate your SDK and API calls.
+
+**Web app**: Go to Settings > API Keys > Create Key
+
+**CLI**:
+```bash
+opengrant keys create --name "my-app"
+```
+
+**API**:
+```bash
+curl -X POST https://api.opengrant.dev/v1/consumer/keys \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app"}'
+```
+
+Save the key securely — it's only shown once.
+
+### 3. Fund Your Wallet
+
+You need USDC on Base (or your configured chain) to pay for API calls.
+
+```bash
+opengrant fund 50
+```
+
+Or transfer USDC directly to your wallet address and record it:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/consumer/credits/add \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{"amount": "50", "txHash": "0x..."}'
+```
+
+### 4. Discover APIs
+
+Browse available APIs on the [marketplace](https://app.opengrant.dev/explore) or via the API:
+
+```bash
+curl https://api.opengrant.dev/v1/apis?limit=20
+```
+
+Get details about a specific API:
+
+```bash
+curl https://api.opengrant.dev/v1/apis/tailwind
+```
+
+### 5. Make API Calls
+
+Install the SDK and start making calls:
+
+```typescript
+import { OpenGrant } from '@opengrant/sdk';
+
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  privateKey: '0x...',  // For automatic USDC payments
+  chainId: 8453,        // Base (default)
+});
+
+// The SDK handles the x402 payment flow automatically
+const response = await client.post('tailwind', '/v1/generate', {
+  input: 'A blue button with rounded corners',
+});
+
+console.log(response.data);
+console.log(response.payment?.amount); // USDC paid
+```
+
+### 6. Monitor Usage
+
+Track your spending and API usage:
+
+```bash
+opengrant stats --period 30d
+```
+
+Or via the SDK:
+
+```typescript
+const usage = await client.getUsage('30d');
+console.log(`Total calls: ${usage.totalCalls}`);
+console.log(`Total spent: ${usage.totalSpent}`);
+```
+
+## Price Protection
+
+Set a maximum price per call to avoid unexpected charges:
+
+```typescript
+const response = await client.post('expensive-api', '/v1/process', {
+  data: 'hello',
+}, {
+  maxPrice: 500000n, // Max 0.50 USDC
+});
+```
+
+## Restricting API Keys
+
+Limit an API key to specific APIs:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/consumer/keys \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{"name": "tailwind-only", "allowedApis": ["tailwind"]}'
+```
+
+## Fee Discounts
+
+Stake GRANT tokens to reduce platform commissions:
+
+| Staked GRANT | Commission |
+|-------------|------------|
+| 0 | 5.00% |
+| 10,000 | 3.50% |
+| 50,000 | 2.50% |
+| 250,000 | 1.50% |
+| 1,000,000 | 0.50% |
+
+See [GRANT Token](/contracts/token) for details.

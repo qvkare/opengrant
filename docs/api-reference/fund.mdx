@@ -1,0 +1,221 @@
+---
+title: "Fund"
+description: "Browse funded projects, donate, analyze dependencies, claim funds, and manage refunds."
+---
+
+**Base path:** `/v1/fund`
+
+## Public Endpoints
+
+### GET /v1/fund/repos
+
+List funded repositories. **No authentication required.**
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `language` | string | - | Filter by programming language |
+| `sort` | string | `"stars"` | Sort by: `stars`, `funded`, `donors` |
+| `q` | string | - | Search query |
+| `limit` | number | `20` | Items per page (max 100) |
+| `offset` | number | `0` | Skip items |
+
+```bash
+curl "https://api.opengrant.dev/v1/fund/repos?language=TypeScript&sort=funded&limit=10"
+```
+
+### GET /v1/fund/repos/:owner/:name
+
+Get repository detail with funding information. **No authentication required.**
+
+```bash
+curl https://api.opengrant.dev/v1/fund/repos/facebook/react
+```
+
+**Response:**
+
+```json
+{
+  "id": "repo_abc123",
+  "owner": "facebook",
+  "name": "react",
+  "fullName": "facebook/react",
+  "description": "The library for web and native user interfaces",
+  "language": "JavaScript",
+  "stargazersCount": 225000,
+  "totalFunded": "15000.00",
+  "totalClaimed": "10000.00",
+  "donorCount": 42,
+  "claimStatus": "claimed",
+  "linkedApis": [
+    {
+      "id": "api_123",
+      "name": "React Utils API",
+      "slug": "react-utils"
+    }
+  ]
+}
+```
+
+### GET /v1/fund/repos/:owner/:name/donors
+
+Get donors for a repository. **No authentication required.**
+
+**Query params:** `limit` (default 20, max 100), `offset` (default 0)
+
+### GET /v1/fund/stats
+
+Get global funding statistics. **No authentication required.**
+
+**Response:**
+
+```json
+{
+  "totalFunded": "250000.00",
+  "totalClaimed": "180000.00",
+  "repoCount": 156,
+  "donorCount": 1234,
+  "donationCount": 5678
+}
+```
+
+## Authenticated Endpoints
+
+### POST /v1/fund/donate
+
+Record a donation to a repository.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repoId` | string | Yes | Repository ID |
+| `txHash` | string | Yes | On-chain transaction hash |
+| `chainId` | number | Yes | Chain ID |
+| `amount` | string | Yes | USDC amount (min 1) |
+| `redistributeOnTimeout` | boolean | No | Redistribute if unclaimed (default: false) |
+| `source` | string | No | Source: `"direct"` (default) or `"stack"` |
+
+The transaction is verified on-chain before recording. Transaction hash must be unique.
+
+### POST /v1/fund/analyze
+
+Analyze a dependency manifest file to prepare for Stack Fund.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | Yes | Manifest file content (max 512KB) |
+| `packageManager` | string | Yes | `"npm"`, `"cargo"`, or `"go"` |
+
+**Response:**
+
+```json
+{
+  "analysisId": "analysis_abc123",
+  "dependencies": [
+    {
+      "name": "react",
+      "owner": "facebook",
+      "repo": "react",
+      "githubId": 10270250,
+      "version": "^18.0.0"
+    }
+  ],
+  "scores": [
+    {
+      "repoHash": "0x...",
+      "owner": "facebook",
+      "repo": "react",
+      "score": 0.25,
+      "reason": "Direct dependency, high usage"
+    }
+  ],
+  "totalDependencies": 42,
+  "directDependencies": 15,
+  "unresolved": ["internal-package"]
+}
+```
+
+### POST /v1/fund/distribute
+
+Execute a Stack Fund distribution based on a previous analysis.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `analysisId` | string | Yes | Analysis ID from `/analyze` |
+| `txHash` | string | Yes | On-chain batch transaction hash |
+| `chainId` | number | Yes | Chain ID |
+| `budget` | string | Yes | Total USDC budget |
+
+**Response:**
+
+```json
+{
+  "analysisId": "analysis_abc123",
+  "txHash": "0x...",
+  "distribution": [
+    { "owner": "facebook", "repo": "react", "amount": 25.00 },
+    { "owner": "vercel", "repo": "next.js", "amount": 20.00 }
+  ],
+  "totalDistributed": 100.00
+}
+```
+
+### GET /v1/fund/my-donations
+
+Get the authenticated user's donation history.
+
+**Query params:** `limit` (default 20, max 100), `offset` (default 0)
+
+### POST /v1/fund/refund
+
+Request a refund for an unclaimed donation (after 365-day eligibility period).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `donationId` | string | Yes | Donation ID |
+| `txHash` | string | Yes | Refund transaction hash |
+
+### POST /v1/fund/claim/authorize
+
+Get an ECDSA claim authorization signature (for project maintainers).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repoId` | string | Yes | Repository ID |
+| `walletAddress` | string | Yes | Claim destination wallet |
+
+**Headers:** `X-GitHub-Token: ghp_xxx` (required to verify repo ownership)
+
+**Response:**
+
+```json
+{
+  "repoHash": "0x...",
+  "nonce": "1708000000000",
+  "signature": "0x...",
+  "escrowAddress": "0x6c21371a...",
+  "chainId": 84532
+}
+```
+
+Use the signature to call `escrow.claim(repoHash, nonce, signature)` on-chain.
+
+### POST /v1/fund/claim/confirm
+
+Confirm a claim transaction after on-chain execution.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repoId` | string | Yes | Repository ID |
+| `txHash` | string | Yes | Claim transaction hash |
+
+### POST /v1/fund/opt-out
+
+Opt out of receiving funds for a repository.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `owner` | string | Yes | GitHub repo owner |
+| `name` | string | Yes | GitHub repo name |
+
+**Headers:** `X-GitHub-Token: ghp_xxx` (required to verify repo admin access)

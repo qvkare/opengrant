@@ -1,0 +1,150 @@
+---
+title: "Architecture"
+description: "How OpenGrant's x402 payment flow, escrow system, and settlement process work together."
+---
+
+## System Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         OpenGrant Platform                           │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────────┐   │
+│  │   Web    │  │   CLI    │  │   SDK    │  │       API          │   │
+│  │(Next.js) │  │(Node.js) │  │   (TS)   │  │    (Express)       │   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────────┬───────────┘   │
+│       │             │             │                  │               │
+│       └─────────────┴─────────────┴──────────────────┘               │
+│                              │                                       │
+│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│  │                    x402 Payment Layer                          │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐        │  │
+│  │  │  Facilitator │  │  Verifier   │  │  EIP-3009 Sigs  │        │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────────┘        │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│  │                    Chainlink CRE                               │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐        │  │
+│  │  │   Payment   │  │   Usage     │  │     Health      │        │  │
+│  │  │ Verification│  │ Aggregation │  │   Monitoring    │        │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────────┘        │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│  │                Smart Contracts (Multi-Chain EVM)               │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌────────────┐ ┌───────────────┐   │  │
+│  │  │ Registry │ │ Payments │ │   Escrow   │ │Publisher Vault│   │  │
+│  │  └──────────┘ └──────────┘ └────────────┘ └───────────────┘   │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+## Project Structure
+
+```
+opengrant/
+├── apps/
+│   ├── api/             # Express 5 API server
+│   ├── web/             # Next.js 16 web application
+│   ├── landing/         # Landing page
+│   └── cli/             # Command-line interface
+├── packages/
+│   ├── sdk/             # TypeScript SDK for consumers
+│   ├── database/        # Drizzle ORM schema
+│   ├── contracts/       # Solidity smart contracts (Foundry)
+│   └── cre-workflows/   # Chainlink CRE workflow definitions
+└── docs/                # This documentation (Mintlify)
+```
+
+## x402 Payment Flow
+
+The x402 protocol uses HTTP's `402 Payment Required` status code for API monetization.
+
+<Steps>
+  <Step title="API Request">
+    Consumer makes an API request with `Authorization: Bearer <api_key>` header.
+  </Step>
+  <Step title="Payment Required">
+    If the endpoint requires payment, API returns `402 Payment Required` with payment details in the `X-402-Payment` header (amount, recipient, facilitator URL, nonce).
+  </Step>
+  <Step title="Sign Payment">
+    SDK signs an EIP-3009 `TransferWithAuthorization` for the USDC amount. This authorizes the facilitator to transfer USDC from the consumer's wallet.
+  </Step>
+  <Step title="Submit to Facilitator">
+    The signed authorization is submitted to the x402 Facilitator, which verifies the signature and processes the USDC transfer on-chain.
+  </Step>
+  <Step title="Payment Token">
+    Facilitator returns a payment token confirming the transfer.
+  </Step>
+  <Step title="Retry with Token">
+    The SDK retries the original request with an `X-402-Payment-Token` header.
+  </Step>
+  <Step title="API Response">
+    The API verifies the payment token and returns the response.
+  </Step>
+</Steps>
+
+## Settlement Flow
+
+Settlements are orchestrated by Chainlink CRE (Compute Runtime Environment):
+
+1. **Usage Aggregation**: CRE workflow aggregates usage records every 5 minutes
+2. **Payment Batching**: Payments are batched and distributed to Publisher Vaults
+3. **Withdrawal**: Publishers can withdraw from their vaults anytime
+4. **Platform Fee**: 5% fee is automatically deducted during settlement
+
+## Open Source Funding
+
+### Direct Fund
+
+1. Browse funded projects at `/fund` or search by language/stars
+2. Select a project and choose donation amount (USDC)
+3. Approve USDC and call `escrow.donate()` on-chain
+4. Funds held in trustless escrow until claimed by project maintainer
+
+### Stack Fund
+
+1. Upload `package.json`, `Cargo.toml`, or `go.mod` at `/fund/stack`
+2. System resolves dependencies to GitHub repos and scores by importance
+3. Set a total budget and review distribution across projects
+4. Single `escrow.batchDonate()` call funds the entire dependency tree
+
+### Claim Flow (for maintainers)
+
+1. Connect wallet and verify GitHub ownership
+2. Backend signs ECDSA claim authorization (attesting repo ownership)
+3. Maintainer calls `escrow.claim()` with the signature (user pays gas)
+4. Escrow transfers accumulated USDC to maintainer's wallet
+
+<Note>
+  Unclaimed donations can be refunded after 365 days, or redistributed to other projects.
+</Note>
+
+## GitHub Verification
+
+Publishers can verify their GitHub identity to link APIs to GitHub repositories. This bridges the escrow (donation) and publisher (API revenue) flows:
+
+1. Publisher verifies GitHub: `POST /v1/publisher/verify-github`
+2. Backend confirms identity via GitHub API
+3. Publisher links API to repo: `POST /v1/publisher/apis` with `githubRepo`
+4. Backend verifies admin access on the repo
+
+This means a project's fund page can show linked APIs, and a publisher's API page can show the associated funding status.
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| API Server | Express 5 |
+| Web App | Next.js 16, React 19 |
+| SDK | TypeScript |
+| CLI | Commander.js |
+| Database | PostgreSQL, Drizzle ORM |
+| Cache | Redis |
+| Smart Contracts | Solidity, Foundry |
+| Auth | Wallet-based (viem), JWT |
+| Payments | USDC, EIP-3009 |
+| Blockchain | Multi-chain EVM |
+| Workflows | Chainlink CRE |
+| Wallet Connect | Particle Network ConnectKit |

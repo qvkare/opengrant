@@ -1,0 +1,107 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "OpenGrant",
+  "description": "Crypto-native API marketplace for open-source monetization",
+  "colors": {
+    "primary": "#111111",
+    "light": "#FAFAFA",
+    "dark": "#111111"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://opengrant.dev"
+  },
+  "navbar": {
+    "links": [{ "label": "App", "href": "https://app.opengrant.dev" }],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "https://app.opengrant.dev/auth"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/opengrant",
+      "github": "https://github.com/qvkare/opengrant"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["introduction", "quickstart", "architecture"]
+          },
+          {
+            "group": "SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/client",
+              "sdk/signer",
+              "sdk/multi-chain",
+              "sdk/errors"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/auth",
+              "cli/keys",
+              "cli/wallet",
+              "cli/publisher"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/consumer",
+              "guides/publisher",
+              "guides/funding"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/auth",
+              "api-reference/consumer",
+              "api-reference/publisher",
+              "api-reference/apis",
+              "api-reference/fund"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Smart Contracts",
+        "groups": [
+          {
+            "group": "Contracts",
+            "pages": [
+              "contracts/overview",
+              "contracts/registry",
+              "contracts/payments",
+              "contracts/escrow",
+              "contracts/token",
+              "contracts/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "pages": ["changelog"]
+      }
+    ]
+  }
+}

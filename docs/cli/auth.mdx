@@ -1,0 +1,73 @@
+---
+title: "Authentication"
+description: "Log in, log out, and manage your CLI session."
+---
+
+## login
+
+Log in to your OpenGrant account using wallet-based authentication.
+
+```bash
+opengrant login [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--headless` | Use terminal-only authentication (private key) |
+
+**Interactive mode** (default) opens a browser window for wallet connection via Particle Network ConnectKit.
+
+**Headless mode** prompts for your private key directly in the terminal — useful for CI/CD environments and servers.
+
+```bash
+# Interactive (opens browser)
+opengrant login
+
+# Headless (terminal-only)
+opengrant login --headless
+```
+
+The CLI signs a timestamped message with your wallet to prove ownership. The API verifies the signature and returns a JWT token, which is stored locally.
+
+<Warning>
+  In headless mode, your private key is entered in the terminal. Ensure your environment is secure and your terminal history is cleared if needed.
+</Warning>
+
+## logout
+
+Log out and clear stored credentials.
+
+```bash
+opengrant logout
+```
+
+Removes the JWT token and wallet info from `~/.opengrant/credentials.json`.
+
+## whoami
+
+Display the currently authenticated wallet address.
+
+```bash
+opengrant whoami
+```
+
+**Output:**
+
+```
+0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18
+```
+
+If not logged in:
+
+```
+Not logged in
+  Run `opengrant login` to authenticate
+```
+
+## Session Security
+
+- Credentials are stored in `~/.opengrant/credentials.json` with `0600` file permissions (owner read/write only)
+- JWT tokens have a limited lifetime and are automatically refreshed
+- The auth message includes a timestamp to prevent replay attacks (60-second window)

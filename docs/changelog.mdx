@@ -1,0 +1,77 @@
+---
+title: "Changelog"
+description: "Release history and notable changes to the OpenGrant platform."
+---
+
+## February 2026
+
+### Multi-Chain Support
+- Added support for 9 EVM chains (5 mainnets + 4 testnets)
+- x402 V2 protocol with CAIP-2 network identifiers
+- SDK auto-resolves USDC addresses and RPC URLs per chain
+- Supported chains: Ethereum, Base, Arbitrum, Linea, Polygon + testnets
+
+### Publisher GitHub Verification
+- Publishers can verify GitHub identity via PAT
+- API-to-GitHub repository linking
+- Fund page shows linked APIs for verified publishers
+- CLI: `opengrant publish verify-github` and `--github-repo` flag
+
+### Base Sepolia Deployment
+- All 8 contracts deployed and verified on Blockscout
+- Registry, Payments, Factory, Escrow, GRANTToken, GRANTStaking, FeeDiscountOracle
+- On-chain configuration verified
+
+### Security Audit (Round 2)
+- 12 findings addressed (6 critical/high)
+- On-chain transaction verification for fund endpoints
+- Query parameter bounds checking
+- Auth endpoint rate limiting (20 req/min/IP)
+- Payment deduplication via txHash uniqueness
+- SSRF IPv6 bypass protection
+
+### CRE Workflows
+- Restructured to per-workflow directories
+- Usage aggregation, health monitoring, payment verification workflows
+- Chainlink CRE SDK integration
+
+### Package Updates
+- Next.js 16.1.2, React 19.2.4, Express 5.2.1
+- Vitest 4.0.18, viem 2.45.1, TypeScript 5.9.3
+- Tailwind CSS 4.1.18 (CSS-based config)
+
+## January 2026
+
+### Auth Migration
+- Migrated from Privy + wagmi + RainbowKit to Particle Network ConnectKit 2.1.3
+- Social login support (email, Google, Twitter)
+- Improved wallet abstraction
+
+### Security Audit (Round 1)
+- 121 findings across 5 packages
+- ~20 critical/high fixes applied
+- Removed default JWT secret
+- SSRF protection on proxy
+- Atomic credit balance SQL
+- SDK: apiKey validation, runtime PaymentDetails validation
+
+### Frontend-Backend Integration
+- All 14 web pages connected to backend APIs
+- No mock data remaining
+- SSR fix with ClientShell component
+
+### Phase 1 Testing
+- 281 JS/TS tests (233 API + 48 SDK)
+- 232 Solidity tests (Foundry)
+- 513 total tests across all packages
+
+## December 2025
+
+### Initial Release
+- Core smart contracts: Registry, Payments, Factory, PublisherVault
+- Express 5 API server with x402 payment verification
+- Next.js web application
+- TypeScript SDK
+- CLI tool
+- PostgreSQL + Drizzle ORM schema
+- Docker Compose for local development

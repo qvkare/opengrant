@@ -1,0 +1,173 @@
+---
+title: "OpenGrantEscrow"
+description: "Trustless USDC escrow for open source project funding with claims, refunds, and batch donations."
+---
+
+The Escrow contract holds USDC donations for open source projects, identified by their GitHub repository hash. Maintainers claim funds by providing a backend-signed authorization proving GitHub ownership.
+
+## Overview
+
+- **Payment Token**: USDC (ERC-20, 6 decimals)
+- **Minimum Donation**: 1 USDC (`MIN_DONATION = 1e6`)
+- **Refund Delay**: 365 days
+- **Claim Authorization**: ECDSA signature from authorized signer
+
+## Donations
+
+### donate
+
+Donate USDC to a GitHub repository.
+
+```solidity
+function donate(
+    bytes32 repoHash,
+    uint256 amount,
+    bool redistributeOnTimeout
+) external
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `repoHash` | bytes32 | keccak256 hash of `"owner/repo"` |
+| `amount` | uint256 | USDC amount (min 1 USDC) |
+| `redistributeOnTimeout` | bool | If true, redistribute to other projects instead of refunding after 365 days |
+
+<Note>
+  Requires prior USDC approval to the Escrow contract address.
+</Note>
+
+### batchDonate
+
+Donate to multiple repositories in a single transaction (used by Stack Fund).
+
+```solidity
+function batchDonate(
+    bytes32[] calldata repoHashes,
+    uint256[] calldata amounts,
+    bool[] calldata redistributeFlags
+) external
+```
+
+Maximum 100 donations per batch.
+
+## Claims
+
+### claim
+
+Claim accumulated funds for a repository. Requires an ECDSA signature from the authorized signer proving GitHub repo ownership.
+
+```solidity
+function claim(
+    bytes32 repoHash,
+    address wallet,
+    uint256 nonce,
+    bytes calldata signature
+) external
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `repoHash` | bytes32 | Repository hash |
+| `wallet` | address | Destination wallet for funds |
+| `nonce` | uint256 | Unique nonce (prevents replay) |
+| `signature` | bytes | ECDSA signature from authorized signer |
+
+The signature is verified against the EIP-712 typed data:
+
+```solidity
+bytes32 constant CLAIM_TYPEHASH = keccak256(
+    "Claim(bytes32 repoHash,address wallet,uint256 nonce)"
+);
+```
+
+**Claim Flow:**
+
+1. Maintainer calls the API endpoint `POST /v1/fund/claim/authorize` with a GitHub PAT
+2. Backend verifies GitHub repo admin access
+3. Backend signs the `Claim` typed data with the `ESCROW_SIGNER_PRIVATE_KEY`
+4. Maintainer calls `escrow.claim()` on-chain with the signature
+5. All accumulated USDC is transferred to the specified wallet
+
+## Refunds
+
+### refund
+
+Refund a donation after the 365-day eligibility period.
+
+```solidity
+function refund(bytes32 repoHash) external
+```
+
+Only the original donor can request a refund, and only after `REFUND_DELAY` (365 days) has passed since the donation.
+
+## Redistribution
+
+### redistribute
+
+Redistribute an unclaimed donation to another project (only if opted in with `redistributeOnTimeout`).
+
+```solidity
+function redistribute(
+    bytes32 fromRepoHash,
+    bytes32 toRepoHash
+) external
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `fromRepoHash` | bytes32 | Source repo (must be unclaimed) |
+| `toRepoHash` | bytes32 | Destination repo |
+
+Requirements:
+- Source repo must not have been claimed
+- Donor must have set `redistributeOnTimeout = true` on the original donation
+- 365-day refund delay must have elapsed
+- Caller must be the original donor
+
+## View Functions
+
+```solidity
+// Get aggregated info for a repository
+function getRepoInfo(bytes32 repoHash) external view returns (RepoInfo memory)
+
+// RepoInfo struct:
+// { totalBalance, totalDonated, totalClaimed, claimedWallet, donorCount }
+
+// Get a specific donation
+function getDonation(bytes32 repoHash, address donor) external view returns (Donation memory)
+
+// Donation struct:
+// { amount, timestamp, redistributeOnTimeout }
+
+// Get the number of funded repos
+function getFundedRepoCount() external view returns (uint256)
+
+// Get a funded repo hash by index
+function getFundedRepo(uint256 index) external view returns (bytes32)
+```
+
+## Admin Functions
+
+```solidity
+function setAuthorizedSigner(address newSigner) external onlyOwner
+function pause() external onlyOwner
+function unpause() external onlyOwner
+```
+
+## Events
+
+```solidity
+event Donated(bytes32 indexed repoHash, address indexed donor, uint256 amount, bool redistributeOnTimeout)
+event Claimed(bytes32 indexed repoHash, address indexed wallet, uint256 amount)
+event Refunded(bytes32 indexed repoHash, address indexed donor, uint256 amount)
+event Redistributed(bytes32 indexed fromRepoHash, bytes32 indexed toRepoHash, address indexed donor, uint256 amount)
+event AuthorizedSignerUpdated(address indexed oldSigner, address indexed newSigner)
+```
+
+## Security
+
+- **Reentrancy Guard**: All state changes happen before external calls
+- **Nonce Tracking**: Each claim nonce can only be used once
+- **Signature Verification**: EIP-712 typed data ensures signatures can't be replayed across contracts or chains
+- **Pausable**: Emergency pause by contract owner
+- **Consistent Wallet**: Once claimed, subsequent claims must go to the same wallet

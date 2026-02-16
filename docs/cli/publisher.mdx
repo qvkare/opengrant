@@ -1,0 +1,118 @@
+---
+title: "Publisher Commands"
+description: "Register APIs, verify GitHub identity, and manage your publisher profile."
+---
+
+## publish verify-github
+
+Verify your GitHub identity to link APIs to GitHub repositories.
+
+```bash
+opengrant publish verify-github [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-t, --token <pat>` | GitHub personal access token |
+
+**Example:**
+
+```bash
+opengrant publish verify-github --token ghp_abc123...
+```
+
+The CLI sends your GitHub PAT to the API, which calls `GET https://api.github.com/user` to verify your identity. Once verified, your publisher account is linked to your GitHub user.
+
+<Note>
+  The GitHub PAT needs `read:user` scope. It's only used once for verification and is not stored.
+</Note>
+
+## publish create-api
+
+Register a new API on the OpenGrant marketplace.
+
+```bash
+opengrant publish create-api [options]
+```
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `-n, --name <name>` | Yes | API name |
+| `-s, --slug <slug>` | Yes | URL slug (used in API calls) |
+| `-u, --url <url>` | Yes | API base URL |
+| `-d, --description <desc>` | No | API description |
+| `--github-repo <owner/name>` | No | Link to a GitHub repository |
+| `--github-token <pat>` | No | GitHub PAT (required if linking repo) |
+
+**Example:**
+
+```bash
+# Basic API registration
+opengrant publish create-api \
+  --name "Weather API" \
+  --slug "weather" \
+  --url "https://api.weather.example.com"
+
+# With GitHub repo linking
+opengrant publish create-api \
+  --name "Weather API" \
+  --slug "weather" \
+  --url "https://api.weather.example.com" \
+  --description "Real-time weather data" \
+  --github-repo "user/weather-api" \
+  --github-token ghp_abc123...
+```
+
+When linking a GitHub repo, the API verifies that you have admin access to the repository. This links the API to the same `github_repos` entry used by the escrow/funding system.
+
+## publish activate
+
+Activate (publish) an API to make it available on the marketplace.
+
+```bash
+opengrant publish activate <slug>
+```
+
+**Example:**
+
+```bash
+opengrant publish activate weather
+```
+
+**Output:**
+
+```
+API "weather" is now active and visible on the marketplace.
+```
+
+## Publisher Workflow
+
+A typical publisher workflow:
+
+```bash
+# 1. Log in
+opengrant login
+
+# 2. Verify GitHub identity (optional, for repo linking)
+opengrant publish verify-github --token ghp_xxx
+
+# 3. Create the API
+opengrant publish create-api \
+  --name "My API" \
+  --slug "my-api" \
+  --url "https://api.example.com" \
+  --github-repo "user/my-api" \
+  --github-token ghp_xxx
+
+# 4. Add endpoints via the web dashboard or API
+# (endpoint management is done via the REST API)
+
+# 5. Activate the API
+opengrant publish activate my-api
+```
+
+After activation, consumers can discover your API on the marketplace and make paid calls using the SDK or direct API access.

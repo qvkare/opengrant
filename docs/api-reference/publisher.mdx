@@ -1,0 +1,232 @@
+---
+title: "Publisher"
+description: "Register APIs, manage endpoints, track earnings, and verify GitHub identity."
+---
+
+All publisher endpoints require authentication with a publisher JWT token.
+
+**Base path:** `/v1/publisher`
+
+## GET /v1/publisher/profile
+
+Get (or auto-create) the publisher profile.
+
+```bash
+curl https://api.opengrant.dev/v1/publisher/profile \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "id": "pub_abc123",
+  "wallet": "0x742d...",
+  "name": "Alice",
+  "githubVerified": true,
+  "githubId": "12345",
+  "createdAt": "2026-01-15T00:00:00Z"
+}
+```
+
+## PUT /v1/publisher/profile
+
+Update publisher profile.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name |
+| `email` | string | Contact email |
+| `bio` | string | Publisher bio |
+| `websiteUrl` | string | Website URL |
+| `githubUsername` | string | GitHub username |
+| `avatarUrl` | string | Avatar URL |
+
+## POST /v1/publisher/verify-github
+
+Verify GitHub identity using a Personal Access Token.
+
+**Rate limit:** 5 req/min
+
+**Headers:** `X-GitHub-Token: ghp_xxx`
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/verify-github \
+  -H "Authorization: Bearer <token>" \
+  -H "X-GitHub-Token: ghp_abc123..."
+```
+
+The API calls `GET https://api.github.com/user` to verify the token holder's identity and links the GitHub user ID to the publisher profile.
+
+**Response:**
+
+```json
+{
+  "githubId": "12345",
+  "githubUsername": "alice",
+  "githubVerified": true,
+  "githubVerifiedAt": "2026-02-01T00:00:00Z"
+}
+```
+
+## GET /v1/publisher/github-repos
+
+List the publisher's GitHub repositories (for linking to APIs).
+
+**Rate limit:** 20 req/min
+
+**Headers:** `X-GitHub-Token: ghp_xxx`
+
+**Query params:** `page` (default: 1)
+
+**Response:**
+
+```json
+[
+  {
+    "id": 123456,
+    "full_name": "alice/weather-api",
+    "description": "Weather data API",
+    "stargazers_count": 42,
+    "language": "TypeScript"
+  }
+]
+```
+
+## GET /v1/publisher/apis
+
+Get the publisher's registered APIs.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "api_abc123",
+    "name": "Weather API",
+    "slug": "weather",
+    "baseUrl": "https://api.weather.example.com",
+    "status": "active",
+    "endpoints": [...]
+  }
+]
+```
+
+## POST /v1/publisher/apis
+
+Register a new API.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | API name |
+| `slug` | string | Yes | URL slug |
+| `description` | string | Yes | API description |
+| `baseUrl` | string | Yes | API base URL |
+| `category` | string | No | Category |
+| `tags` | string[] | No | Tags |
+| `documentationUrl` | string | No | Docs URL |
+| `logoUrl` | string | No | Logo URL |
+| `endpoints` | object[] | No | Initial endpoints |
+| `githubRepo` | string | No | GitHub repo (`owner/name`) |
+
+When `githubRepo` is provided, the API verifies admin access and links the API to the GitHub repository. Requires prior GitHub verification via `POST /verify-github`.
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/apis \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weather API",
+    "slug": "weather",
+    "description": "Real-time weather data",
+    "baseUrl": "https://api.weather.example.com",
+    "githubRepo": "alice/weather-api"
+  }'
+```
+
+## PUT /v1/publisher/apis/:apiId
+
+Update an existing API.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | API name |
+| `description` | string | Description |
+| `baseUrl` | string | Base URL |
+| `status` | string | Status (`active`, `inactive`) |
+| `category` | string | Category |
+| `tags` | string[] | Tags |
+| `documentationUrl` | string | Documentation URL |
+| `logoUrl` | string | Logo URL |
+
+## POST /v1/publisher/apis/:apiId/publish
+
+Publish (activate) an API.
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/apis/api_abc123/publish \
+  -H "Authorization: Bearer <token>"
+```
+
+## PUT /v1/publisher/apis/:apiId/endpoints/:endpointId
+
+Update an endpoint's settings.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pricePerCall` | string | Price in USDC (e.g., `"0.001"`) |
+| `rateLimitPerMinute` | number | Rate limit per minute |
+| `rateLimitPerHour` | number | Rate limit per hour |
+| `rateLimitPerDay` | number | Rate limit per day |
+| `isActive` | boolean | Enable/disable endpoint |
+| `description` | string | Endpoint description |
+
+## GET /v1/publisher/earnings
+
+Get earnings summary.
+
+**Response:**
+
+```json
+{
+  "totalEarned": "1500000000",
+  "pendingBalance": "250000000",
+  "recentPayments": [...],
+  "withdrawals": [...]
+}
+```
+
+## GET /v1/publisher/analytics
+
+Get publisher analytics.
+
+**Query params:** `period` — `7d`, `30d`, `90d` (default: `30d`)
+
+**Response:**
+
+```json
+{
+  "totalCalls": 5000,
+  "totalRevenue": "1500000000",
+  "uniqueConsumers": 42,
+  "daily": [...]
+}
+```
+
+## POST /v1/publisher/withdraw
+
+Request a withdrawal of earned USDC.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `amount` | string | Yes | USDC amount to withdraw |
+| `destinationAddress` | string | Yes | Wallet address |
+| `destinationChain` | string | No | Chain (default: `"base"`) |
+
+## GET /v1/publisher/withdrawals
+
+Get withdrawal history.
+
+## POST /v1/publisher/settle
+
+Trigger settlement for the publisher's APIs. Processes pending usage records and distributes payments.

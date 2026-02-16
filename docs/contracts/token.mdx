@@ -1,0 +1,173 @@
+---
+title: "GRANT Token & Staking"
+description: "GRANT is the native utility token of the OpenGrant protocol — fee discounts, revenue sharing, publisher benefits, and governance."
+---
+
+## Overview
+
+| Parameter | Value |
+|-----------|-------|
+| Token Name | GRANT |
+| Network | Base (Ethereum L2) |
+| Standard | ERC-20 + ERC20Permit + ERC20Votes |
+| Total Supply | 1,000,000,000 (fixed, no inflation) |
+| Payment Currency | USDC (stablecoin) |
+
+GRANT is a fixed-supply ERC-20 token with no mint function. The entire supply is minted to the deployer at construction and distributed through vesting contracts.
+
+## Token Utility
+
+### 1. Fee Discounts
+
+API consumers who stake GRANT receive reduced platform commissions:
+
+| Tier | GRANT Staked | Commission | Discount |
+|------|-------------|------------|----------|
+| Standard | 0 | 5.00% | -- |
+| Silver | 10,000 | 3.50% | 30% |
+| Gold | 50,000 | 2.50% | 50% |
+| Platinum | 250,000 | 1.50% | 70% |
+| Diamond | 1,000,000 | 0.50% | 90% |
+
+### 2. Revenue Sharing
+
+30% of all platform commission revenue is distributed to GRANT stakers in USDC:
+
+```
+Platform Commission (5% default)
+    |
+    +-- 70% --> Platform Treasury
+    +-- 30% --> Staking Reward Pool (USDC, pro-rata)
+```
+
+Stakers earn real yield in USDC, not inflationary token emissions.
+
+### 3. Publisher Benefits
+
+| Benefit | Requirement |
+|---------|-------------|
+| Verified Publisher badge | 10,000 GRANT staked |
+| Featured listing placement | 50,000 GRANT staked |
+| Priority support & SLA | 100,000 GRANT staked |
+| Early access to new features | 25,000 GRANT staked |
+
+### 4. Governance
+
+GRANT holders vote on protocol parameters: commission rate, staking reward split, treasury allocation, and feature prioritization. Governance weight scales with lock duration.
+
+## Tokenomics
+
+| Allocation | Amount | Percentage |
+|------------|--------|------------|
+| Staking & Ecosystem Rewards | 350,000,000 | 35.0% |
+| Treasury / DAO | 200,000,000 | 20.0% |
+| Team & Advisors | 120,000,000 | 12.0% |
+| Seed Round | 80,000,000 | 8.0% |
+| Strategic Round | 70,000,000 | 7.0% |
+| Public Sale | 50,000,000 | 5.0% |
+| Liquidity Provision | 50,000,000 | 5.0% |
+| Publisher Incentives | 40,000,000 | 4.0% |
+| Community & Grants | 40,000,000 | 4.0% |
+
+### Emission Schedule (Staking Rewards)
+
+350M GRANT distributed over 4 years with a front-loaded curve:
+
+| Year | Emission | % of Rewards |
+|------|----------|-------------|
+| Year 1 | 120,000,000 | 34.3% |
+| Year 2 | 95,000,000 | 27.1% |
+| Year 3 | 75,000,000 | 21.4% |
+| Year 4 | 60,000,000 | 17.1% |
+
+After Year 4, staking rewards come exclusively from platform revenue share (USDC).
+
+## GRANTToken Contract
+
+```solidity
+contract GRANTToken is ERC20, ERC20Permit, ERC20Votes {
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether;
+
+    constructor() ERC20("GRANT", "GRANT") ERC20Permit("GRANT") {
+        _mint(msg.sender, TOTAL_SUPPLY);
+    }
+}
+```
+
+Key properties:
+- **No mint function** — supply is permanently fixed at 1 billion
+- **ERC20Permit** — gasless approvals via EIP-2612 signatures
+- **ERC20Votes** — on-chain governance delegation and voting
+
+## GRANTStaking Contract
+
+Based on the Synthetix StakingRewards pattern.
+
+### Core Functions
+
+```solidity
+function stake(uint256 amount) external
+function requestWithdraw(uint256 amount) external
+function completeWithdraw() external
+function cancelCooldown() external
+function claimGrantReward() external
+function claimUSDCReward() external
+```
+
+### Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| Cooldown Period | 7 days |
+| Withdraw Window | 3 days |
+| Reward Duration | 30 days |
+
+### Dual Rewards
+
+Stakers earn two types of rewards simultaneously:
+
+1. **USDC Revenue Share** — 30% of platform commissions, distributed proportionally
+2. **GRANT Emissions** — Declining schedule over 4 years, distributed per second
+
+### Governance Weight
+
+Voluntary lock-up increases governance voting power:
+
+| Lock Period | Governance Multiplier |
+|-------------|----------------------|
+| No lock (7-day cooldown only) | 1.0x |
+| 3 months | 1.5x |
+| 6 months | 2.0x |
+| 12 months | 3.0x |
+
+### View Functions
+
+```solidity
+function balanceOf(address account) external view returns (uint256)
+function effectiveBalanceOf(address account) external view returns (uint256)
+function grantRewardPerToken() external view returns (uint256)
+function usdcRewardPerToken() external view returns (uint256)
+```
+
+## FeeDiscountOracle
+
+The oracle queries the GRANTStaking contract to determine fee discount tiers:
+
+```solidity
+function getDiscount(address consumer) external view returns (uint256 discountBPS)
+```
+
+Returns the discount in basis points based on the consumer's staked GRANT amount.
+
+## Revenue Flow
+
+```
+API Call Payment (USDC)
+    |
+    +-- 95-99.5% --> Publisher Vault --> Publisher Payees
+    |
+    +-- 0.5-5.0% --> Platform Commission
+                         |
+                         +-- 70% --> Platform Treasury
+                         +-- 30% --> Staking Reward Pool (USDC to stakers)
+```

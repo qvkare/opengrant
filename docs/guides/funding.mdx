@@ -1,0 +1,166 @@
+---
+title: "Funding Guide"
+description: "How to fund open source projects, claim donations, and use Stack Fund."
+---
+
+## For Supporters
+
+### Direct Fund
+
+Fund a specific open source project:
+
+1. **Browse projects** at [app.opengrant.dev/fund](https://app.opengrant.dev/fund)
+2. **Search** by name, language, or stars
+3. **Select a project** and choose your donation amount (minimum 1 USDC)
+4. **Approve USDC** and sign the on-chain transaction
+5. **Funds are held** in trustless escrow until claimed by the maintainer
+
+```bash
+# Record a donation via API
+curl -X POST https://api.opengrant.dev/v1/fund/donate \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "repoId": "repo_abc123",
+    "txHash": "0x...",
+    "chainId": 84532,
+    "amount": "50.00"
+  }'
+```
+
+### Stack Fund
+
+Fund your entire dependency tree with a single transaction:
+
+1. Go to [app.opengrant.dev/fund/stack](https://app.opengrant.dev/fund/stack)
+2. **Upload** your `package.json`, `Cargo.toml`, or `go.mod`
+3. The system **analyzes** your dependencies, resolves them to GitHub repos, and scores by importance
+4. **Set a budget** and review the distribution
+5. **Sign one transaction** to fund all projects proportionally
+
+**Via API:**
+
+```bash
+# Step 1: Analyze dependencies
+curl -X POST https://api.opengrant.dev/v1/fund/analyze \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "content": "{ \"dependencies\": { \"react\": \"^18.0.0\" } }",
+    "packageManager": "npm"
+  }'
+
+# Step 2: Execute distribution
+curl -X POST https://api.opengrant.dev/v1/fund/distribute \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "analysisId": "analysis_abc123",
+    "txHash": "0x...",
+    "chainId": 84532,
+    "budget": "100.00"
+  }'
+```
+
+### Supported Package Managers
+
+| Manager | File | Ecosystem |
+|---------|------|-----------|
+| npm | `package.json` | JavaScript/TypeScript |
+| cargo | `Cargo.toml` | Rust |
+| go | `go.mod` | Go |
+
+### Redistribution
+
+When donating, you can choose `redistributeOnTimeout: true`. If the project doesn't claim within 365 days, your donation is redistributed to other active projects instead of being refunded.
+
+### Refunds
+
+If a project hasn't claimed your donation after 365 days:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/fund/refund \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "donationId": "donation_abc123",
+    "txHash": "0x..."
+  }'
+```
+
+### Viewing Donations
+
+```bash
+curl https://api.opengrant.dev/v1/fund/my-donations \
+  -H "Authorization: Bearer <jwt>"
+```
+
+## For Maintainers
+
+### Claiming Funds
+
+If your project has accumulated donations, you can claim them:
+
+<Steps>
+  <Step title="Connect Wallet">
+    Sign in at [app.opengrant.dev](https://app.opengrant.dev) with your wallet.
+  </Step>
+  <Step title="Verify GitHub">
+    Provide a GitHub PAT with `repo` and `read:user` scopes to prove you're an admin of the repository.
+  </Step>
+  <Step title="Get Authorization">
+    The backend verifies your GitHub ownership and signs an ECDSA claim authorization.
+  </Step>
+  <Step title="Submit Claim">
+    Call `escrow.claim()` on-chain with the authorization signature. You pay gas, and all accumulated USDC is transferred to your wallet.
+  </Step>
+  <Step title="Confirm">
+    The claim transaction is recorded and the repository is marked as claimed.
+  </Step>
+</Steps>
+
+**Via API:**
+
+```bash
+# Step 1: Get claim authorization
+curl -X POST https://api.opengrant.dev/v1/fund/claim/authorize \
+  -H "Authorization: Bearer <jwt>" \
+  -H "X-GitHub-Token: ghp_xxx" \
+  -d '{
+    "repoId": "repo_abc123",
+    "walletAddress": "0x..."
+  }'
+
+# Response includes signature for on-chain claim
+# { "repoHash": "0x...", "nonce": "...", "signature": "0x..." }
+
+# Step 2: After on-chain claim, confirm
+curl -X POST https://api.opengrant.dev/v1/fund/claim/confirm \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "repoId": "repo_abc123",
+    "txHash": "0x..."
+  }'
+```
+
+### Opting Out
+
+If you don't want your project to receive donations:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/fund/opt-out \
+  -H "Authorization: Bearer <jwt>" \
+  -H "X-GitHub-Token: ghp_xxx" \
+  -d '{
+    "owner": "facebook",
+    "name": "react"
+  }'
+```
+
+This requires admin access to the repository.
+
+## Funding Stats
+
+View global funding statistics:
+
+```bash
+curl https://api.opengrant.dev/v1/fund/stats
+```
+
+Returns total funded amount, total claimed, number of funded projects, donor count, and donation count.

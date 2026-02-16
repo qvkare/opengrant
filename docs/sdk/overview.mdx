@@ -1,0 +1,160 @@
+---
+title: "SDK Overview"
+description: "Install and configure the OpenGrant TypeScript SDK for making paid API calls."
+---
+
+## Installation
+
+```bash
+npm install @opengrant/sdk
+# or
+pnpm add @opengrant/sdk
+# or
+yarn add @opengrant/sdk
+```
+
+## Quick Start
+
+```typescript
+import { OpenGrant } from '@opengrant/sdk';
+
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  privateKey: '0x...', // Enables automatic USDC payments
+});
+
+const response = await client.post('tailwind', '/v1/generate', {
+  input: 'A blue primary button',
+});
+
+console.log(response.data);
+```
+
+## Configuration
+
+The `OpenGrant` constructor accepts an `OpenGrantConfig` object:
+
+```typescript
+interface OpenGrantConfig {
+  /** Your OpenGrant API key (required) */
+  apiKey: string;
+
+  /** Base URL for OpenGrant API */
+  baseUrl?: string;  // default: "https://api.opengrant.dev"
+
+  /** Chain ID for payment network */
+  chainId?: number;  // default: 8453 (Base)
+
+  /** Custom RPC URL */
+  rpcUrl?: string;
+
+  /** Private key for signing payments */
+  privateKey?: `0x${string}`;
+
+  /** Wallet client (alternative to privateKey) */
+  walletClient?: WalletClient;
+
+  /** Request timeout in ms */
+  timeout?: number;  // default: 30000
+
+  /** Enable automatic retries */
+  autoRetry?: boolean;  // default: true
+
+  /** Maximum retry attempts */
+  maxRetries?: number;  // default: 3
+
+  /** Enable debug logging */
+  debug?: boolean;  // default: false
+}
+```
+
+### Without a Wallet
+
+If you don't provide `privateKey` or `walletClient`, the SDK will work for free API endpoints but throw `PaymentRequiredError` when a paid endpoint returns 402.
+
+```typescript
+// Read-only client (no payments)
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+});
+
+// Works for free endpoints
+const info = await client.getAPIInfo('weather');
+
+// Throws PaymentRequiredError for paid endpoints
+await client.get('weather', '/v1/forecast'); // Error!
+```
+
+### With a Private Key
+
+The simplest way to enable automatic payments:
+
+```typescript
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  privateKey: '0xabc123...', // Your wallet private key
+});
+```
+
+### With a Wallet Client (viem)
+
+For browser or advanced use cases, pass a viem `WalletClient`:
+
+```typescript
+import { createWalletClient, custom } from 'viem';
+import { base } from 'viem/chains';
+
+const walletClient = createWalletClient({
+  chain: base,
+  transport: custom(window.ethereum),
+});
+
+const client = new OpenGrant({
+  apiKey: 'og_live_xxx',
+  walletClient,
+});
+```
+
+## Exports
+
+The SDK exports the following:
+
+```typescript
+// Main client
+import { OpenGrant } from '@opengrant/sdk';
+
+// Payment signer
+import { PaymentSigner, createSigner, createSignerFromWallet } from '@opengrant/sdk';
+
+// Error classes
+import {
+  OpenGrantError,
+  PaymentRequiredError,
+  InsufficientBalanceError,
+  PaymentFailedError,
+  UnauthorizedError,
+  APINotFoundError,
+  RateLimitError,
+  NetworkError,
+  TimeoutError,
+} from '@opengrant/sdk';
+
+// Chain utilities
+import {
+  SUPPORTED_CHAINS,
+  getChainConfig,
+  getUSDCAddress,
+  getNetworkId,
+} from '@opengrant/sdk';
+
+// Types
+import type {
+  OpenGrantConfig,
+  CallOptions,
+  PaymentDetails,
+  APIResponse,
+  UsageStats,
+  WalletBalance,
+  APIInfo,
+} from '@opengrant/sdk';
+```

@@ -1,0 +1,178 @@
+---
+title: "OpenGrantRegistry"
+description: "UUPS upgradeable registry for publishers, APIs, and endpoints."
+---
+
+The Registry is the core data contract that stores all publisher registrations, API configurations, and endpoint pricing on-chain.
+
+## Overview
+
+- **Pattern**: UUPS Upgradeable Proxy
+- **Access Control**: Owner (admin) + publisher self-management
+- **Linked**: Bidirectional link with OpenGrantPayments
+
+## Publishers
+
+### registerPublisher
+
+Register a new publisher with a vault address.
+
+```solidity
+function registerPublisher(
+    address vault,
+    string calldata metadataUri
+) external
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `vault` | address | Publisher vault address (ERC-4626) |
+| `metadataUri` | string | IPFS/HTTP URI for publisher metadata |
+
+### updatePublisher
+
+```solidity
+function updatePublisher(string calldata metadataUri) external
+```
+
+### updatePublisherVault
+
+```solidity
+function updatePublisherVault(address newVault) external
+```
+
+### deactivatePublisher
+
+Deactivates the publisher and all their APIs/endpoints.
+
+```solidity
+function deactivatePublisher() external
+```
+
+### View Functions
+
+```solidity
+function getPublisher(address publisher) external view returns (Publisher memory)
+function isPublisherActive(address publisher) external view returns (bool)
+```
+
+## APIs
+
+### registerAPI
+
+Register a new API under the calling publisher.
+
+```solidity
+function registerAPI(
+    string calldata name,
+    string calldata baseUrl,
+    string calldata metadataUri
+) external returns (bytes32 apiId)
+```
+
+Returns a deterministic `apiId` (keccak256 hash).
+
+**Limits**: Maximum 100 APIs per publisher (`MAX_APIS_PER_PUBLISHER`).
+
+### updateAPI
+
+```solidity
+function updateAPI(
+    bytes32 apiId,
+    string calldata baseUrl,
+    string calldata metadataUri
+) external
+```
+
+### deactivateAPI
+
+Deactivates the API and all its endpoints.
+
+```solidity
+function deactivateAPI(bytes32 apiId) external
+```
+
+### View Functions
+
+```solidity
+function getAPI(bytes32 apiId) external view returns (API memory)
+function getPublisherAPIs(address publisher) external view returns (bytes32[] memory)
+function isAPIActive(bytes32 apiId) external view returns (bool)
+```
+
+## Endpoints
+
+### configureEndpoint
+
+Add or update an endpoint for an API.
+
+```solidity
+function configureEndpoint(
+    bytes32 apiId,
+    string calldata path,
+    string calldata method,
+    uint256 pricePerCall,
+    uint256 rateLimit
+) external returns (bytes32 endpointId)
+```
+
+**Limits**: Maximum 50 endpoints per API (`MAX_ENDPOINTS_PER_API`).
+
+### updateEndpointPrice
+
+```solidity
+function updateEndpointPrice(bytes32 endpointId, uint256 newPrice) external
+```
+
+### deactivateEndpoint
+
+```solidity
+function deactivateEndpoint(bytes32 endpointId) external
+```
+
+### View Functions
+
+```solidity
+function getEndpoint(bytes32 endpointId) external view returns (Endpoint memory)
+function getAPIEndpoints(bytes32 apiId) external view returns (bytes32[] memory)
+function getEndpointPrice(bytes32 endpointId) external view returns (uint256)
+```
+
+## Internal Functions (Used by Payments Contract)
+
+These functions are called by the Payments contract and are restricted to `paymentsContract`:
+
+```solidity
+// Increment API call and revenue statistics
+function incrementAPIStats(bytes32 apiId, uint256 calls, uint256 revenue) external
+
+// Get publisher's vault address
+function getPublisherVault(address publisher) external view returns (address)
+
+// Get an API's publisher address
+function getAPIPublisher(bytes32 apiId) external view returns (address)
+```
+
+## Admin Functions
+
+```solidity
+function setPaymentsContract(address _paymentsContract) external onlyOwner
+function pause() external onlyOwner
+function unpause() external onlyOwner
+```
+
+## Events
+
+```solidity
+event PublisherRegistered(address indexed publisher, address indexed vault, string metadataUri)
+event PublisherUpdated(address indexed publisher, string metadataUri)
+event PublisherDeactivated(address indexed publisher)
+event PublisherVaultUpdated(address indexed publisher, address indexed oldVault, address indexed newVault)
+event APIRegistered(bytes32 indexed apiId, address indexed publisher, string name, string baseUrl)
+event APIUpdated(bytes32 indexed apiId, string baseUrl, string metadataUri)
+event APIDeactivated(bytes32 indexed apiId)
+event EndpointConfigured(bytes32 indexed apiId, bytes32 indexed endpointId, string path, string method, uint256 pricePerCall)
+event EndpointPriceUpdated(bytes32 indexed endpointId, uint256 newPrice)
+event EndpointDeactivated(bytes32 indexed endpointId)
+event PaymentsContractUpdated(address indexed oldContract, address indexed newContract)
+```

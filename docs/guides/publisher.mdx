@@ -1,0 +1,161 @@
+---
+title: "Publisher Guide"
+description: "How to register, monetize, and manage your APIs as a publisher on OpenGrant."
+---
+
+## Getting Started as a Publisher
+
+As a publisher, you register your APIs on OpenGrant and earn USDC for every call consumers make.
+
+### 1. Create a Publisher Account
+
+Sign in via the [web app](https://app.opengrant.dev) and select "Publisher" as your account type.
+
+Or use the CLI:
+
+```bash
+npm install -g @opengrant/cli
+opengrant login
+# Select "publisher" when prompted
+```
+
+### 2. Verify GitHub Identity (Optional)
+
+Link your GitHub identity to unlock repo-linked APIs and the funding bridge:
+
+**CLI:**
+```bash
+opengrant publish verify-github --token ghp_xxx
+```
+
+**Web**: Go to Publisher Settings > GitHub Verification
+
+The GitHub PAT needs `read:user` scope. It's used once for verification and not stored.
+
+### 3. Register Your API
+
+**CLI:**
+```bash
+opengrant publish create-api \
+  --name "Weather API" \
+  --slug "weather" \
+  --url "https://api.weather.example.com" \
+  --description "Real-time weather data" \
+  --github-repo "user/weather-api" \
+  --github-token ghp_xxx
+```
+
+**API:**
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/apis \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weather API",
+    "slug": "weather",
+    "description": "Real-time weather data",
+    "baseUrl": "https://api.weather.example.com"
+  }'
+```
+
+### 4. Add Endpoints
+
+Endpoints are defined when creating the API. Include them in the `endpoints` array:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/apis \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weather API",
+    "slug": "weather",
+    "baseUrl": "https://api.weather.example.com",
+    "endpoints": [
+      {
+        "path": "/v1/forecast",
+        "method": "GET",
+        "description": "Get weather forecast",
+        "pricePerCall": "0.001",
+        "rateLimitPerMinute": 60
+      }
+    ]
+  }'
+```
+
+To update an existing endpoint:
+
+```bash
+curl -X PUT https://api.opengrant.dev/v1/publisher/apis/<api-id>/endpoints/<endpoint-id> \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{"pricePerCall": "0.002"}'
+```
+
+### 5. Activate Your API
+
+```bash
+opengrant publish activate weather
+```
+
+Once activated, your API appears on the marketplace and consumers can start making paid calls.
+
+## How Payments Work
+
+1. A consumer calls your API through the OpenGrant proxy
+2. The proxy returns a 402 with payment details
+3. The consumer's SDK signs a USDC payment authorization
+4. Payment is verified and your API receives the request
+5. Revenue accumulates in your publisher balance
+6. Settlement distributes funds to your Publisher Vault
+
+## Monitoring Revenue
+
+### Earnings Dashboard
+
+```bash
+curl https://api.opengrant.dev/v1/publisher/earnings \
+  -H "Authorization: Bearer <jwt>"
+```
+
+Returns total earned, pending balance, recent payments, and withdrawal history.
+
+### Analytics
+
+```bash
+curl "https://api.opengrant.dev/v1/publisher/analytics?period=30d" \
+  -H "Authorization: Bearer <jwt>"
+```
+
+Returns call counts, revenue, unique consumers, and daily breakdowns.
+
+## Withdrawals
+
+Withdraw your earned USDC to any wallet:
+
+```bash
+curl -X POST https://api.opengrant.dev/v1/publisher/withdraw \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "amount": "100.00",
+    "destinationAddress": "0x..."
+  }'
+```
+
+## Publisher Vaults
+
+Each publisher gets an ERC-4626 vault that receives distributed payments. If you have multiple team members, configure the vault's PaymentSplitter with multiple payees and shares.
+
+## GitHub Repo Linking
+
+When you link an API to a GitHub repository:
+
+- Your API page shows the associated open source project
+- The project's fund page shows your linked APIs
+- Donors can see their funding supports both the project and your commercial API
+- The two revenue streams (donations and API income) remain separate wallets but are unified through GitHub identity
+
+## Pricing Tips
+
+- **Start low**: Lower prices attract more consumers and generate data
+- **Price per value**: Charge more for compute-intensive endpoints
+- **Check competitors**: Browse similar APIs on the marketplace
+- **Use rate limits**: Protect your infrastructure with per-minute/hour/day limits
