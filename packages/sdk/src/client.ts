@@ -33,8 +33,13 @@ import type {
   APIInfo,
   DonationConfig,
   DonationResult,
+  BatchDonationConfig,
+  BatchDonationResult,
+  ClaimConfig,
+  ClaimResult,
   RepoFundInfo,
   Donation,
+  TipResult,
 } from "./types.js";
 
 // USDC ABI (minimal for balanceOf + approve + allowance)
@@ -68,7 +73,7 @@ const USDC_ABI = [
   },
 ] as const;
 
-// Escrow ABI (minimal for donate)
+// Escrow ABI (donate, batchDonate, claim, refund, getRepoInfo)
 const ESCROW_ABI = [
   {
     name: "donate",
@@ -80,6 +85,55 @@ const ESCROW_ABI = [
       { name: "redistributeOnTimeout", type: "bool" },
     ],
     outputs: [],
+  },
+  {
+    name: "batchDonate",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "repoHashes", type: "bytes32[]" },
+      { name: "amounts", type: "uint256[]" },
+      { name: "redistributeFlags", type: "bool[]" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "repoHash", type: "bytes32" },
+      { name: "wallet", type: "address" },
+      { name: "nonce", type: "uint256" },
+      { name: "signature", type: "bytes" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "refund",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "repoHash", type: "bytes32" }],
+    outputs: [],
+  },
+  {
+    name: "getRepoInfo",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "repoHash", type: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "totalBalance", type: "uint256" },
+          { name: "totalDonated", type: "uint256" },
+          { name: "totalClaimed", type: "uint256" },
+          { name: "claimedWallet", type: "address" },
+          { name: "donorCount", type: "uint256" },
+        ],
+      },
+    ],
   },
 ] as const;
 
@@ -117,6 +171,7 @@ export class OpenGrant {
   private readonly debug: boolean;
   private readonly chainId: number;
   private readonly tipPercentage: number;
+  private readonly onTip?: (result: TipResult) => void;
   private readonly signer?: PaymentSigner;
   private readonly publicClient;
   private readonly usdcAddress: `0x${string}`;
@@ -139,6 +194,7 @@ export class OpenGrant {
     this.debug = config.debug ?? false;
     this.chainId = config.chainId ?? DEFAULT_CHAIN_ID;
     this.tipPercentage = Math.min(Math.max(config.tipPercentage ?? 0, 0), 100);
+    this.onTip = config.onTip;
 
     // Resolve chain-specific config
     const chainConfig = getChainConfig(this.chainId);
@@ -440,6 +496,7 @@ export class OpenGrant {
         if (this.tipPercentage > 0 && paymentAmount && this.signer) {
           this.tipLinkedRepo(apiSlug, paymentAmount).catch((err) => {
             this.log("Tip failed:", err.message);
+            this.onTip?.({ success: false, error: err.message });
           });
         }
 
@@ -681,7 +738,14 @@ export class OpenGrant {
       this.log("Warning: Failed to record tip in backend");
     }
 
+    const repoFullName = `${apiInfo.githubRepo.owner}/${apiInfo.githubRepo.name}`;
     this.log(`Tip successful: ${txHash}`);
+    this.onTip?.({
+      success: true,
+      repo: repoFullName,
+      amount: formatUnits(tipAmount, USDC_DECIMALS),
+      txHash,
+    });
   }
 
   /**
@@ -796,6 +860,245 @@ export class OpenGrant {
   }
 
   /**
+   * Donate to multiple repositories in a single on-chain transaction
+   *
+   * @param config - Batch donation configuration
+   * @returns Batch donation result with transaction hash
+   */
+  async batchDonate(config: BatchDonationConfig): Promise<BatchDonationResult> {
+    if (!this.signer) {
+      throw new OpenGrantError({
+        message: "Wallet required for donations. Provide privateKey or walletClient.",
+        code: "NO_WALLET",
+        status: 0,
+      });
+    }
+
+    const escrowAddress = getEscrowAddress(this.chainId);
+    if (!escrowAddress) {
+      throw new OpenGrantError({
+        message: `Escrow contract not deployed on chain ${this.chainId}`,
+        code: "ESCROW_NOT_DEPLOYED",
+        status: 0,
+      });
+    }
+
+    if (config.donations.length === 0) {
+      throw new OpenGrantError({
+        message: "At least one donation is required",
+        code: "INVALID_CONFIG",
+        status: 0,
+      });
+    }
+
+    // Resolve repo hashes from backend
+    const repoInfos = await Promise.all(
+      config.donations.map((d) => this.getRepoFundInfo(d.repoOwner, d.repoName))
+    );
+
+    const repoHashes = repoInfos.map((r) => r.repoHash as `0x${string}`);
+    const amounts = config.donations.map((d) => parseUnits(d.amount, USDC_DECIMALS));
+    const flags = config.donations.map((d) => d.redistributeOnTimeout ?? false);
+    const totalAmount = amounts.reduce((sum, a) => sum + a, 0n);
+
+    // Check USDC balance
+    const balance = await this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: USDC_ABI,
+      functionName: "balanceOf",
+      args: [this.signer.address as `0x${string}`],
+    });
+
+    if (balance < totalAmount) {
+      throw new InsufficientBalanceError(totalAmount, balance);
+    }
+
+    // Check and set USDC allowance
+    const allowance = await this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: USDC_ABI,
+      functionName: "allowance",
+      args: [this.signer.address as `0x${string}`, escrowAddress],
+    });
+
+    if (allowance < totalAmount) {
+      this.log(`Approving ${formatUnits(totalAmount, USDC_DECIMALS)} USDC for escrow`);
+      const walletClient = this.signer.getWalletClient();
+      const approveHash = await walletClient.writeContract({
+        address: this.usdcAddress,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [escrowAddress, totalAmount],
+        chain: this.viemChain as any,
+        account: this.signer.address as `0x${string}`,
+      });
+      await this.publicClient.waitForTransactionReceipt({ hash: approveHash });
+    }
+
+    // Execute on-chain batch donation
+    this.log(`Batch donating ${formatUnits(totalAmount, USDC_DECIMALS)} USDC to ${config.donations.length} repos`);
+    const walletClient = this.signer.getWalletClient();
+    const txHash = await walletClient.writeContract({
+      address: escrowAddress,
+      abi: ESCROW_ABI,
+      functionName: "batchDonate",
+      args: [repoHashes, amounts, flags],
+      chain: this.viemChain as any,
+      account: this.signer.address as `0x${string}`,
+    });
+
+    await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    // Record in backend (best-effort, per donation)
+    for (let i = 0; i < repoInfos.length; i++) {
+      try {
+        await this.fetchWithTimeout(
+          `${this.baseUrl}/v1/fund/donate`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              repoId: repoInfos[i].id,
+              txHash,
+              chainId: this.chainId,
+              amount: config.donations[i].amount,
+              redistributeOnTimeout: flags[i],
+              source: "direct",
+            }),
+          },
+          this.timeout
+        );
+      } catch {
+        this.log(`Warning: Failed to record donation for ${config.donations[i].repoOwner}/${config.donations[i].repoName} in backend`);
+      }
+    }
+
+    return {
+      txHash,
+      repoCount: config.donations.length,
+      totalAmount: formatUnits(totalAmount, USDC_DECIMALS),
+      chainId: this.chainId,
+    };
+  }
+
+  /**
+   * Claim escrow funds for a repository you own.
+   * Requires a GitHub token to prove ownership.
+   *
+   * Flow:
+   * 1. Gets claim authorization (EIP-712 signature) from backend
+   * 2. Executes on-chain claim
+   * 3. Confirms claim in backend
+   *
+   * @param config - Claim configuration
+   * @returns Claim result with transaction hash
+   */
+  async claim(config: ClaimConfig): Promise<ClaimResult> {
+    if (!this.signer) {
+      throw new OpenGrantError({
+        message: "Wallet required for claims. Provide privateKey or walletClient.",
+        code: "NO_WALLET",
+        status: 0,
+      });
+    }
+
+    const escrowAddress = getEscrowAddress(this.chainId);
+    if (!escrowAddress) {
+      throw new OpenGrantError({
+        message: `Escrow contract not deployed on chain ${this.chainId}`,
+        code: "ESCROW_NOT_DEPLOYED",
+        status: 0,
+      });
+    }
+
+    // Step 1: Get repo info
+    const repoInfo = await this.getRepoFundInfo(config.repoOwner, config.repoName);
+
+    // Step 2: Get claim authorization from backend
+    this.log(`Requesting claim authorization for ${config.repoOwner}/${config.repoName}`);
+    const authResponse = await this.fetchWithTimeout(
+      `${this.baseUrl}/v1/fund/claim/authorize`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+          "X-GitHub-Token": config.githubToken,
+        },
+        body: JSON.stringify({
+          repoId: repoInfo.id,
+          walletAddress: this.signer.address,
+        }),
+      },
+      this.timeout
+    );
+
+    if (!authResponse.ok) {
+      const errBody = await authResponse.text();
+      throw new OpenGrantError({
+        message: `Claim authorization failed: ${errBody}`,
+        code: "CLAIM_AUTHORIZATION_FAILED",
+        status: authResponse.status,
+      });
+    }
+
+    const auth = (await authResponse.json()) as {
+      repoHash: string;
+      nonce: string;
+      signature: string;
+    };
+
+    // Step 3: Execute on-chain claim
+    this.log(`Claiming funds on-chain for ${config.repoOwner}/${config.repoName}`);
+    const walletClient = this.signer.getWalletClient();
+    const txHash = await walletClient.writeContract({
+      address: escrowAddress,
+      abi: ESCROW_ABI,
+      functionName: "claim",
+      args: [
+        auth.repoHash as `0x${string}`,
+        this.signer.address as `0x${string}`,
+        BigInt(auth.nonce),
+        auth.signature as `0x${string}`,
+      ],
+      chain: this.viemChain as any,
+      account: this.signer.address as `0x${string}`,
+    });
+
+    await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    // Step 4: Confirm claim in backend
+    try {
+      await this.fetchWithTimeout(
+        `${this.baseUrl}/v1/fund/claim/confirm`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repoId: repoInfo.id,
+            txHash,
+          }),
+        },
+        this.timeout
+      );
+    } catch {
+      this.log("Warning: Failed to confirm claim in backend (on-chain claim succeeded)");
+    }
+
+    return {
+      txHash,
+      repoHash: repoInfo.repoHash,
+      chainId: this.chainId,
+    };
+  }
+
+  /**
    * Get funding info for a GitHub repository
    *
    * @param owner - GitHub owner (e.g. "facebook")
@@ -804,7 +1107,11 @@ export class OpenGrant {
   async getRepoFundInfo(owner: string, name: string): Promise<RepoFundInfo> {
     const response = await this.fetchWithTimeout(
       `${this.baseUrl}/v1/fund/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
-      {},
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      },
       this.timeout
     );
 
@@ -846,8 +1153,8 @@ export class OpenGrant {
     offset?: number;
   }): Promise<{ data: Donation[]; pagination: { limit: number; offset: number; total: number } }> {
     const query = new URLSearchParams();
-    if (params?.limit) query.set("limit", params.limit.toString());
-    if (params?.offset) query.set("offset", params.offset.toString());
+    if (params?.limit != null) query.set("limit", params.limit.toString());
+    if (params?.offset != null) query.set("offset", params.offset.toString());
     const qs = query.toString();
 
     const response = await this.fetchWithTimeout(

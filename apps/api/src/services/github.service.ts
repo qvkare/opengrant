@@ -250,6 +250,47 @@ export async function searchRepos(params: SearchParams) {
 }
 
 /**
+ * Search GitHub for repos matching a query, sync results to DB, and return them.
+ * Used as a fallback when local DB search returns no results.
+ * Rate limit: 30 req/min (authenticated), 10 req/min (unauthenticated).
+ */
+export async function searchGitHubAndSync(
+  query: string,
+  limit: number = 10
+): Promise<number> {
+  const clampedLimit = Math.min(Math.max(limit, 1), 30);
+  const encodedQ = encodeURIComponent(query);
+
+  const res = await fetchWithTimeout(
+    `${GITHUB_API}/search/repositories?q=${encodedQ}&sort=stars&order=desc&per_page=${clampedLimit}`,
+    { headers: githubHeaders() }
+  );
+
+  if (!res.ok) return 0;
+
+  const data = (await res.json()) as { items?: GitHubApiRepo[] };
+  const items: GitHubApiRepo[] = data.items || [];
+  let synced = 0;
+
+  for (const repo of items) {
+    const mapped = mapApiRepo(repo);
+    await db
+      .insert(githubRepos)
+      .values({
+        ...mapped,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: githubRepos.githubId,
+        set: mapped,
+      });
+    synced++;
+  }
+
+  return synced;
+}
+
+/**
  * Verify that a GitHub user has admin access to a repo
  */
 export async function verifyRepoOwnership(

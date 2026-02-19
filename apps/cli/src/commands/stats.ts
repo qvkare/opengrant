@@ -48,7 +48,8 @@ interface APIStats {
 }
 
 function formatUSDC(amount: string): string {
-  const value = parseFloat(amount) / 1_000_000;
+  // API returns amounts already in human-readable USDC (not wei)
+  const value = parseFloat(amount) || 0;
   return `$${value.toFixed(2)}`;
 }
 

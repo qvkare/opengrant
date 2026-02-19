@@ -208,6 +208,21 @@ export default function StackFundPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
+      {/* Testnet Banner */}
+      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center text-sm">
+        <span className="font-medium text-yellow-700">Base Sepolia Testnet</span>
+        <span className="text-yellow-600"> — Uses test USDC. No real funds involved.</span>
+      </div>
+
+      {/* Wrong Chain Warning */}
+      {isConnected && escrow.isWrongChain && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-sm">
+          <span className="text-red-600">
+            Wrong network detected. Please switch to <strong>{escrow.chainName}</strong> in your wallet.
+          </span>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/fund" className="hover:text-foreground">
@@ -460,7 +475,7 @@ export default function StackFundPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={distributions.length === 0 || isBusy}
+            disabled={distributions.length === 0 || isBusy || escrow.isWrongChain}
             onClick={handleFundStack}
           >
             {isBusy ? (
@@ -468,6 +483,8 @@ export default function StackFundPage() {
                 <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                 Processing...
               </>
+            ) : escrow.isWrongChain ? (
+              `Switch to ${escrow.chainName}`
             ) : !isConnected ? (
               "Connect Wallet to Fund"
             ) : (

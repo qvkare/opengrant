@@ -209,6 +209,21 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="container py-8 max-w-4xl">
+      {/* Testnet Banner */}
+      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center text-sm">
+        <span className="font-medium text-yellow-700">Base Sepolia Testnet</span>
+        <span className="text-yellow-600"> — Uses test USDC. No real funds involved.</span>
+      </div>
+
+      {/* Wrong Chain Warning */}
+      {isConnected && escrow.isWrongChain && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-sm">
+          <span className="text-red-600">
+            Wrong network detected. Please switch to <strong>{escrow.chainName}</strong> in your wallet.
+          </span>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/fund" className="hover:text-foreground">Fund</Link>
@@ -368,7 +383,7 @@ export default function ProjectDetailPage() {
           <Button
             className="w-full"
             size="lg"
-            disabled={!donateAmount || !isValidAmount || isBusy}
+            disabled={!donateAmount || !isValidAmount || isBusy || escrow.isWrongChain}
             onClick={handleDonate}
           >
             {isBusy ? (
@@ -376,6 +391,8 @@ export default function ProjectDetailPage() {
                 <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                 Processing...
               </>
+            ) : escrow.isWrongChain ? (
+              `Switch to ${escrow.chainName}`
             ) : !isConnected ? (
               "Connect Wallet to Donate"
             ) : (

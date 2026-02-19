@@ -8,9 +8,36 @@ import {
   type Hash,
   type TransactionReceipt,
 } from "viem";
-import { base } from "viem/chains";
+import {
+  base,
+  baseSepolia,
+  arbitrum,
+  arbitrumSepolia,
+  linea,
+  lineaSepolia,
+  polygon,
+  polygonAmoy,
+  mainnet,
+} from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "../config/index.js";
+
+// Map chain ID to viem chain object
+const CHAIN_MAP: Record<number, any> = {
+  1: mainnet,
+  8453: base,
+  42161: arbitrum,
+  59144: linea,
+  137: polygon,
+  84532: baseSepolia,
+  421614: arbitrumSepolia,
+  59141: lineaSepolia,
+  80002: polygonAmoy,
+};
+
+function getViemChain() {
+  return CHAIN_MAP[config.blockchain.chainId] ?? base;
+}
 
 // USDC contract on Base
 const USDC_ADDRESS = config.contracts.usdc as Address;
@@ -91,7 +118,7 @@ const TRANSFER_WITH_AUTHORIZATION_ABI = [
 
 // Create public client for reading blockchain state
 const publicClient = createPublicClient({
-  chain: base,
+  chain: getViemChain(),
   transport: http(config.blockchain.rpcUrl),
 });
 
@@ -234,7 +261,7 @@ export function createPlatformWallet() {
 
   const walletClient = createWalletClient({
     account,
-    chain: base,
+    chain: getViemChain(),
     transport: http(config.blockchain.rpcUrl),
   });
 

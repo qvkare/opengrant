@@ -196,6 +196,21 @@ export default function ClaimPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
+      {/* Testnet Banner */}
+      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center text-sm">
+        <span className="font-medium text-yellow-700">Base Sepolia Testnet</span>
+        <span className="text-yellow-600"> — Uses test USDC. No real funds involved.</span>
+      </div>
+
+      {/* Wrong Chain Warning */}
+      {isConnected && escrow.isWrongChain && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-sm">
+          <span className="text-red-600">
+            Wrong network detected. Please switch to <strong>{escrow.chainName}</strong> in your wallet.
+          </span>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/fund" className="hover:text-foreground">
@@ -312,10 +327,14 @@ export default function ClaimPage() {
                   <div className="flex items-center">
                     <Button
                       size="sm"
-                      disabled={claiming !== null}
+                      disabled={claiming !== null || escrow.isWrongChain}
                       onClick={() => handleClaim(repo)}
                     >
-                      {claiming === repo.id ? "Claiming..." : "Claim"}
+                      {escrow.isWrongChain
+                        ? `Switch to ${escrow.chainName}`
+                        : claiming === repo.id
+                          ? "Claiming..."
+                          : "Claim"}
                     </Button>
                     {claiming === repo.id && (
                       <TxStatusInline status={escrow.txStatus} />

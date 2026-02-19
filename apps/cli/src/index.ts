@@ -7,6 +7,7 @@ import { logout } from "./commands/logout.js";
 import { createKey, listKeys, revokeKey } from "./commands/keys.js";
 import { balance } from "./commands/balance.js";
 import { fund } from "./commands/fund.js";
+import { donate, claimFunds } from "./commands/donate.js";
 import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
@@ -72,6 +73,20 @@ program
   .description("Fund your wallet with USDC")
   .option("--headless", "Use direct transfer instead of browser-based onramp")
   .action(fund);
+
+program
+  .command("donate <owner/repo> <amount>")
+  .description("Donate USDC to an open source repository via escrow")
+  .option("--private-key <key>", "Private key (or set OPENGRANT_PRIVATE_KEY env)")
+  .option("--redistribute", "Allow redistribution if unclaimed after 1 year")
+  .action(donate);
+
+program
+  .command("claim")
+  .description("Claim escrow funds for repositories you own")
+  .option("--private-key <key>", "Private key (or set OPENGRANT_PRIVATE_KEY env)")
+  .option("--github-token <pat>", "GitHub personal access token (or set GITHUB_TOKEN env)")
+  .action(claimFunds);
 
 // ========================
 // Usage & Stats Commands
@@ -183,6 +198,12 @@ ${chalk.bold("Examples:")}
 
   ${chalk.dim("# Fund your wallet with $50")}
   $ opengrant fund 50
+
+  ${chalk.dim("# Donate 10 USDC to a project")}
+  $ opengrant donate facebook/react 10
+
+  ${chalk.dim("# Claim funds for repos you own")}
+  $ opengrant claim --github-token ghp_xxx
 
   ${chalk.dim("# View usage stats")}
   $ opengrant stats

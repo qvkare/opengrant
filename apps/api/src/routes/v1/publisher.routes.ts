@@ -474,7 +474,13 @@ router.put("/apis/:apiId", async (req: AuthRequest, res: Response) => {
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (baseUrl !== undefined) updateData.baseUrl = baseUrl;
-    if (status !== undefined) updateData.status = status;
+    if (status !== undefined) {
+      const VALID_STATUSES = ["draft", "active", "inactive"];
+      if (!VALID_STATUSES.includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
+      }
+      updateData.status = status;
+    }
     if (category !== undefined) updateData.category = category;
     if (tags !== undefined) updateData.tags = tags;
     if (documentationUrl !== undefined) updateData.documentationUrl = documentationUrl;
@@ -784,12 +790,22 @@ router.get("/analytics", async (req: AuthRequest, res: Response) => {
 router.post("/withdraw", async (req: AuthRequest, res: Response) => {
   const { amount, destinationAddress, destinationChain = "base" } = req.body;
 
-  if (!amount || BigInt(amount) <= 0) {
-    return res.status(400).json({ error: "Invalid amount" });
+  let amountBigInt: bigint;
+  try {
+    amountBigInt = BigInt(amount);
+  } catch {
+    return res.status(400).json({ error: "Invalid amount: must be a positive integer (USDC wei)" });
+  }
+  if (amountBigInt <= 0n) {
+    return res.status(400).json({ error: "Invalid amount: must be greater than zero" });
   }
 
   if (!destinationAddress) {
     return res.status(400).json({ error: "Destination address is required" });
+  }
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(destinationAddress)) {
+    return res.status(400).json({ error: "Invalid destination address format" });
   }
 
   try {
@@ -801,12 +817,31 @@ router.post("/withdraw", async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Publisher not found" });
     }
 
+    // Check available balance before creating withdrawal
+    const [earnings] = await db
+      .select({ net: sql<string>`COALESCE(SUM(amount * (1 - platform_fee_rate)), 0)::text` })
+      .from(payments)
+      .where(and(eq(payments.publisherId, publisher.id), eq(payments.status, "settled")));
+    const [withdrawn] = await db
+      .select({ total: sql<string>`COALESCE(SUM(amount), 0)::text` })
+      .from(withdrawals)
+      .where(and(eq(withdrawals.publisherId, publisher.id), ne(withdrawals.status, "rejected")));
+
+    const availableBalance = BigInt(earnings?.net || "0") - BigInt(withdrawn?.total || "0");
+    if (amountBigInt > availableBalance) {
+      return res.status(400).json({
+        error: "Insufficient balance",
+        available: availableBalance.toString(),
+        requested: amountBigInt.toString(),
+      });
+    }
+
     // Create withdrawal request
     const [withdrawal] = await db
       .insert(withdrawals)
       .values({
         publisherId: publisher.id,
-        amount,
+        amount: amountBigInt.toString(),
         destinationAddress,
         destinationChain,
         status: "pending",

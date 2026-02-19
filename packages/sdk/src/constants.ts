@@ -70,7 +70,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     chainId: 59144,
     name: "Linea",
     network: "eip155:59144",
-    usdc: "0xfece4462d57bd51a6a552365a011b95f0e16d9b7",
+    usdc: "0xFEce4462d57bD51A6A552365a011b95f0E16d9B7",
     rpcUrl: "https://rpc.linea.build",
     testnet: false,
   },

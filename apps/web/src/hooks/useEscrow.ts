@@ -25,10 +25,25 @@ const publicClient = createPublicClient({
 export type TxStatus = "idle" | "approving" | "sending" | "confirming" | "success" | "error";
 
 export function useEscrow() {
-  const { address, wallets } = useWallet();
+  const { address, wallets, chainId: walletChainId } = useWallet();
   const [txStatus, setTxStatus] = useState<TxStatus>("idle");
   const [txHash, setTxHash] = useState<Hash | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Only true when wallet IS connected but on the wrong chain.
+  // undefined chainId (disconnected) is NOT "wrong chain" — it's "not connected".
+  const isWrongChain = walletChainId !== undefined && walletChainId !== chain.id;
+
+  function assertCorrectChain() {
+    if (walletChainId === undefined) {
+      throw new Error("Wallet not connected or chain not detected yet.");
+    }
+    if (walletChainId !== chain.id) {
+      throw new Error(
+        `Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`
+      );
+    }
+  }
 
   const getWalletClient = useCallback(() => {
     if (!wallets[0]) throw new Error("No wallet connected");
@@ -74,6 +89,9 @@ export function useEscrow() {
       redistributeOnTimeout: boolean
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
+      // assertCorrectChain uses walletChainId from the current render closure
+      if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
+      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
 
       setError(null);
       setTxHash(null);
@@ -105,7 +123,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, ensureAllowance, getWalletClient]
+    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId]
   );
 
   const batchDonate = useCallback(
@@ -115,6 +133,8 @@ export function useEscrow() {
       redistributeFlags: boolean[]
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
+      if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
+      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
 
       setError(null);
       setTxHash(null);
@@ -147,7 +167,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, ensureAllowance, getWalletClient]
+    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId]
   );
 
   const claim = useCallback(
@@ -158,6 +178,8 @@ export function useEscrow() {
       signature: `0x${string}`
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
+      if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
+      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
 
       setError(null);
       setTxHash(null);
@@ -186,7 +208,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, getWalletClient]
+    [escrowAddress, address, getWalletClient, walletChainId]
   );
 
   const getRepoInfo = useCallback(
@@ -241,5 +263,7 @@ export function useEscrow() {
     reset,
     escrowAddress,
     chainId: chain.id,
+    chainName: chain.name,
+    isWrongChain,
   };
 }

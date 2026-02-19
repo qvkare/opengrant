@@ -230,4 +230,30 @@ router.post("/trigger-settlement", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Sync top GitHub repos by stars into the database
+ * POST /internal/sync-repos
+ *
+ * Called by: manual trigger or cron to seed repo database
+ * Body: { limit?: number } (default 500, max 5000)
+ */
+router.post("/sync-repos", async (req: Request, res: Response) => {
+  const { limit = 500 } = req.body || {};
+
+  const clampedLimit = Math.min(Math.max(Number(limit) || 500, 1), 5000);
+
+  try {
+    const { syncTopRepos } = await import(
+      "../../services/github.service.js"
+    );
+
+    const synced = await syncTopRepos(clampedLimit);
+
+    res.json({ success: true, synced });
+  } catch (error) {
+    console.error("Sync repos error:", error);
+    res.status(500).json({ error: "Failed to sync repos" });
+  }
+});
+
 export default router;

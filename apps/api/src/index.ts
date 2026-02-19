@@ -218,6 +218,20 @@ async function startServer() {
       console.warn("⚠️ Redis connection failed, some features may be limited");
     }
 
+    // Fire-and-forget: seed top GitHub repos into database
+    if (process.env.GITHUB_TOKEN) {
+      import("./services/github.service.js")
+        .then(({ syncTopRepos }) => syncTopRepos(200))
+        .then((count) => console.log(`✅ Synced ${count} GitHub repos`))
+        .catch((err) =>
+          console.warn("⚠️ GitHub repo sync failed:", err.message)
+        );
+    } else {
+      console.warn(
+        "⚠️ GITHUB_TOKEN not set, skipping repo sync (GitHub API rate limit: 60 req/hr without token)"
+      );
+    }
+
     // Start server
     const server = app.listen(config.server.port, () => {
       console.log(`

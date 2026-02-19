@@ -56,6 +56,14 @@ router.get("/", async (req: Request, res: Response) => {
     const db = getDb();
     const { category, limit = "20", offset = "0" } = req.query;
 
+    const parsedLimit = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);
+    const parsedOffset = Math.max(parseInt(offset as string, 10) || 0, 0);
+
+    const conditions = [eq(apis.status, "active") as any];
+    if (category && typeof category === "string") {
+      conditions.push(eq(apis.category, category));
+    }
+
     let query = db
       .select({
         id: apis.id,
@@ -70,18 +78,18 @@ router.get("/", async (req: Request, res: Response) => {
         publishedAt: apis.publishedAt,
       })
       .from(apis)
-      .where(eq(apis.status, "active"))
+      .where(and(...conditions))
       .orderBy(desc(apis.totalCalls))
-      .limit(parseInt(limit as string, 10))
-      .offset(parseInt(offset as string, 10));
+      .limit(parsedLimit)
+      .offset(parsedOffset);
 
     const results = await query;
 
     res.json({
       data: results,
       pagination: {
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
+        limit: parsedLimit,
+        offset: parsedOffset,
       },
     });
   } catch (error) {

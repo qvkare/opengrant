@@ -854,7 +854,7 @@ describe("Publisher Routes", () => {
         id: "w-new",
         publisherId: "pub-1",
         amount: "1000000",
-        destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+        destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         destinationChain: "base",
         status: "pending",
         createdAt: new Date("2024-01-01"),
@@ -862,7 +862,11 @@ describe("Publisher Routes", () => {
 
       // Query 1: findFirst returns publisher
       pushQueryResult(mockPublisher);
-      // Query 2: insert.returning returns new withdrawal
+      // Query 2: select earnings (balance check)
+      pushQueryResult([{ net: "5000000" }]);
+      // Query 3: select total withdrawn (balance check)
+      pushQueryResult([{ total: "0" }]);
+      // Query 4: insert.returning returns new withdrawal
       pushQueryResult([newWithdrawal]);
 
       const res = await request(app)
@@ -870,7 +874,7 @@ describe("Publisher Routes", () => {
         .set("Authorization", `Bearer ${publisherToken}`)
         .send({
           amount: "1000000",
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
           destinationChain: "base",
         });
 
@@ -885,7 +889,7 @@ describe("Publisher Routes", () => {
         .post("/v1/publisher/withdraw")
         .set("Authorization", `Bearer ${publisherToken}`)
         .send({
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         });
 
       expect(res1.status).toBe(400);
@@ -896,7 +900,7 @@ describe("Publisher Routes", () => {
         .set("Authorization", `Bearer ${publisherToken}`)
         .send({
           amount: "0",
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         });
 
       expect(res2.status).toBe(400);
@@ -907,7 +911,7 @@ describe("Publisher Routes", () => {
         .set("Authorization", `Bearer ${publisherToken}`)
         .send({
           amount: "-1000",
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         });
 
       expect(res3.status).toBe(400);
@@ -935,7 +939,7 @@ describe("Publisher Routes", () => {
         .set("Authorization", `Bearer ${publisherToken}`)
         .send({
           amount: "1000000",
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         });
 
       expect(res.status).toBe(404);
@@ -947,7 +951,7 @@ describe("Publisher Routes", () => {
         .post("/v1/publisher/withdraw")
         .send({
           amount: "1000000",
-          destinationAddress: "0xdest1234567890abcdef1234567890abcdef12",
+          destinationAddress: "0xdeadbeef1234567890abcdef1234567890abcdef",
         });
       expect(res.status).toBe(401);
     });

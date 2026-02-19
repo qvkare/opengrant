@@ -8,6 +8,7 @@ interface OpenGrantConfig {
   apiKey?: string;
   defaultApi?: string;
   environment: "production" | "staging";
+  tipPercentage?: number;
 }
 
 async function findConfigFile(): Promise<string | null> {
@@ -68,7 +69,7 @@ export async function configSet(key: string, value: string): Promise<void> {
     return;
   }
 
-  const validKeys = ["apiKey", "api-key", "defaultApi", "default-api", "environment"];
+  const validKeys = ["apiKey", "api-key", "defaultApi", "default-api", "environment", "tipPercentage", "tip-percentage"];
 
   // Normalize key names
   const normalizedKey = key.replace(/-/g, "");
@@ -76,10 +77,12 @@ export async function configSet(key: string, value: string): Promise<void> {
     ? "apiKey"
     : normalizedKey === "defaultapi"
       ? "defaultApi"
-      : key;
+      : normalizedKey === "tippercentage"
+        ? "tipPercentage"
+        : key;
 
   if (!validKeys.includes(key) && !validKeys.includes(configKey)) {
-    console.log(chalk.red(`Invalid key "${key}". Valid keys: api-key, default-api, environment`));
+    console.log(chalk.red(`Invalid key "${key}". Valid keys: api-key, default-api, environment, tip-percentage`));
     return;
   }
 
@@ -92,6 +95,13 @@ export async function configSet(key: string, value: string): Promise<void> {
         return;
       }
       config.environment = value;
+    } else if (configKey === "tipPercentage") {
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0 || num > 100) {
+        console.log(chalk.red("tip-percentage must be a number between 0 and 100"));
+        return;
+      }
+      config.tipPercentage = num;
     } else {
       (config as unknown as Record<string, string>)[configKey] = value;
     }
@@ -122,9 +132,10 @@ export async function configList(): Promise<void> {
   try {
     const config = await readConfig(configPath);
 
-    console.log(chalk.dim("  api-key:      ") + (config.apiKey ? chalk.green("***" + config.apiKey.slice(-4)) : chalk.dim("(not set)")));
-    console.log(chalk.dim("  default-api:  ") + (config.defaultApi || chalk.dim("(not set)")));
-    console.log(chalk.dim("  environment:  ") + config.environment);
+    console.log(chalk.dim("  api-key:         ") + (config.apiKey ? chalk.green("***" + config.apiKey.slice(-4)) : chalk.dim("(not set)")));
+    console.log(chalk.dim("  default-api:     ") + (config.defaultApi || chalk.dim("(not set)")));
+    console.log(chalk.dim("  environment:     ") + config.environment);
+    console.log(chalk.dim("  tip-percentage:  ") + (config.tipPercentage != null ? chalk.cyan(`${config.tipPercentage}%`) : chalk.dim("0 (disabled)")));
     console.log();
   } catch (error) {
     console.error(chalk.red("Failed to read config"));

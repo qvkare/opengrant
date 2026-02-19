@@ -4,8 +4,16 @@ import {
   type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
+import {
+  base, baseSepolia, arbitrum, arbitrumSepolia,
+  linea, lineaSepolia, polygon, polygonAmoy, mainnet,
+} from "viem/chains";
 import { config } from "../config/index.js";
+
+const CHAIN_MAP: Record<number, any> = {
+  1: mainnet, 8453: base, 42161: arbitrum, 59144: linea, 137: polygon,
+  84532: baseSepolia, 421614: arbitrumSepolia, 59141: lineaSepolia, 80002: polygonAmoy,
+};
 
 // Minimal ABI for reading escrow contract state
 const ESCROW_ABI = [
@@ -87,7 +95,7 @@ export interface DonationInfo {
 
 function getPublicClient() {
   return createPublicClient({
-    chain: base,
+    chain: CHAIN_MAP[config.blockchain.chainId] ?? base,
     transport: http(config.blockchain.rpcUrl),
   });
 }

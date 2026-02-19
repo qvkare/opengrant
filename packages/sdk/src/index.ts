@@ -54,6 +54,11 @@ export type {
   APIInfo,
   DonationConfig,
   DonationResult,
+  BatchDonationConfig,
+  BatchDonationResult,
+  ClaimConfig,
+  ClaimResult,
+  TipResult,
   RepoFundInfo,
   Donation,
 } from "./types.js";

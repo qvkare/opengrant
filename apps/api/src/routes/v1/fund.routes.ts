@@ -13,6 +13,7 @@ import { getTransactionReceipt } from "../../services/blockchain.service.js";
 import {
   getRepoByOwnerName,
   searchRepos,
+  searchGitHubAndSync,
   computeRepoHash,
   verifyRepoOwnership,
 } from "../../services/github.service.js";
@@ -46,13 +47,35 @@ router.get("/repos", async (req: Request, res: Response) => {
       offset: rawOffset = "0",
     } = req.query;
 
-    const result = await searchRepos({
+    const searchParams = {
       language: language as string | undefined,
       sort: sort as "stars" | "funded" | "donors",
       q: q as string | undefined,
       limit: Math.min(Math.max(parseInt(rawLimit as string) || 20, 1), 100),
       offset: Math.max(parseInt(rawOffset as string) || 0, 0),
-    });
+    };
+
+    let result = await searchRepos(searchParams);
+
+    // If search query provided, offset is 0, and DB returned few results,
+    // fall back to GitHub search to auto-sync matching repos.
+    if (
+      q &&
+      typeof q === "string" &&
+      q.length >= 2 &&
+      searchParams.offset === 0 &&
+      result.data.length < 3
+    ) {
+      try {
+        const synced = await searchGitHubAndSync(q, 15);
+        if (synced > 0) {
+          // Re-run DB search to include newly synced repos
+          result = await searchRepos(searchParams);
+        }
+      } catch {
+        // GitHub search failed — return original DB results
+      }
+    }
 
     res.json(result);
   } catch (error) {

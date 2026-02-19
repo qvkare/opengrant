@@ -76,14 +76,14 @@ const particleConfig = isParticleConfigured
  * This component MUST be rendered inside ConnectKitProvider.
  */
 function WalletBridge({ children }: { children: ReactNode }) {
-  const { address, isConnected, status } = useAccount();
+  const { address, isConnected, status, chainId } = useAccount();
   const { setOpen } = useModal();
   const { disconnect } = useDisconnect();
   const wallets = useWallets();
 
   return (
     <WalletContext.Provider
-      value={{ address, isConnected, status, setOpen, disconnect, wallets }}
+      value={{ address, isConnected, status, chainId, setOpen, disconnect, wallets }}
     >
       {children}
     </WalletContext.Provider>

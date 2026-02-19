@@ -154,6 +154,7 @@ async function proxyRequest(
         !key.startsWith("x-402") &&
         !key.startsWith("x-opengrant") &&
         key !== "x-api-key" &&
+        key !== "x-github-token" &&
         typeof value === "string"
       ) {
         headers[key] = value;

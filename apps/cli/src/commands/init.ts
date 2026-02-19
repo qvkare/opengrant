@@ -14,6 +14,7 @@ interface OpenGrantConfig {
   apiKey?: string;
   defaultApi?: string;
   environment: "production" | "staging";
+  tipPercentage?: number;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -121,6 +122,18 @@ export async function init(options: InitOptions): Promise<void> {
       ],
       default: "production",
     },
+    {
+      type: "number",
+      name: "tipPercentage",
+      message: "Auto-tip percentage for linked OSS projects on paid API calls (0-100):",
+      default: 0,
+      validate: (input: number) => {
+        if (isNaN(input) || input < 0 || input > 100) {
+          return "Must be a number between 0 and 100";
+        }
+        return true;
+      },
+    },
   ]);
 
   // Build config object
@@ -134,6 +147,10 @@ export async function init(options: InitOptions): Promise<void> {
 
   if (answers.defaultApi) {
     config.defaultApi = answers.defaultApi;
+  }
+
+  if (answers.tipPercentage > 0) {
+    config.tipPercentage = answers.tipPercentage;
   }
 
   // Write config file

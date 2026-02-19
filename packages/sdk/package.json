@@ -1,10 +1,11 @@
 {
   "name": "@opengrant/sdk",
   "version": "0.1.0",
-  "description": "OpenGrant SDK - Make paid API calls with x402 micropayments",
+  "description": "OpenGrant SDK - Pay for APIs with USDC micropayments using the x402 protocol",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,7 +14,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -41,11 +43,24 @@
     "x402",
     "crypto",
     "usdc",
-    "base"
+    "base",
+    "blockchain",
+    "evm",
+    "open-source",
+    "funding",
+    "escrow",
+    "donate"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/opengrant/opengrant"
+    "url": "git+https://github.com/qvkare/opengrant.git"
+  },
+  "homepage": "https://opengrant.dev",
+  "bugs": {
+    "url": "https://github.com/qvkare/opengrant/issues"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "license": "MIT"
 }

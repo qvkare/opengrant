@@ -26,6 +26,24 @@ export interface OpenGrantConfig {
   debug?: boolean;
   /** Auto-tip percentage for linked OSS projects on paid API calls (0-100, default: 0) */
   tipPercentage?: number;
+  /** Callback when an auto-tip completes (success or failure) */
+  onTip?: (result: TipResult) => void;
+}
+
+/**
+ * Result of an auto-tip attempt after a paid API call
+ */
+export interface TipResult {
+  /** Whether the tip succeeded */
+  success: boolean;
+  /** Repo that was tipped (owner/name) */
+  repo?: string;
+  /** USDC amount tipped (human-readable) */
+  amount?: string;
+  /** Transaction hash (if successful) */
+  txHash?: string;
+  /** Error message (if failed) */
+  error?: string;
 }
 
 /**
@@ -212,6 +230,61 @@ export interface DonationResult {
   /** Amount donated in USDC */
   amount: string;
   /** Chain ID where donation was made */
+  chainId: number;
+}
+
+/**
+ * Batch donation configuration — donate to multiple repos in a single transaction
+ */
+export interface BatchDonationConfig {
+  /** Array of donation targets */
+  donations: Array<{
+    /** GitHub repository owner (e.g. "facebook") */
+    repoOwner: string;
+    /** GitHub repository name (e.g. "react") */
+    repoName: string;
+    /** USDC amount (human-readable, e.g. "10.00") */
+    amount: string;
+    /** If unclaimed after timeout, allow redistribution (default: false) */
+    redistributeOnTimeout?: boolean;
+  }>;
+}
+
+/**
+ * Batch donation result
+ */
+export interface BatchDonationResult {
+  /** On-chain transaction hash */
+  txHash: string;
+  /** Number of repos funded */
+  repoCount: number;
+  /** Total USDC amount donated */
+  totalAmount: string;
+  /** Chain ID where donation was made */
+  chainId: number;
+}
+
+/**
+ * Claim configuration — claim escrow funds for a repo you own
+ */
+export interface ClaimConfig {
+  /** GitHub repository owner (e.g. "facebook") */
+  repoOwner: string;
+  /** GitHub repository name (e.g. "react") */
+  repoName: string;
+  /** GitHub personal access token for ownership verification */
+  githubToken: string;
+}
+
+/**
+ * Claim result
+ */
+export interface ClaimResult {
+  /** On-chain claim transaction hash */
+  txHash: string;
+  /** Repository hash (bytes32) */
+  repoHash: string;
+  /** Chain ID where claim was executed */
   chainId: number;
 }
 

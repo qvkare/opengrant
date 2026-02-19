@@ -81,15 +81,20 @@ async function browserLogin(): Promise<void> {
   const spinner = ora("Preparing authentication...").start();
 
   try {
-    const sessionId = generateSessionId();
-    const webUrl = getWebUrl();
-    const authUrl = `${webUrl}/auth/cli?session=${sessionId}`;
+    // Register session on the server first so the web app can complete it
+    const apiUrl = getApiUrl();
+    const initRes = await fetch(`${apiUrl}/auth/cli/init`, { method: "POST" });
+    if (!initRes.ok) {
+      spinner.fail(chalk.red("Failed to create auth session"));
+      return;
+    }
+    const { sessionId, authUrl } = await initRes.json() as { sessionId: string; authUrl: string };
 
     spinner.text = "Opening browser...";
     await openBrowser(authUrl);
 
     spinner.text = "Waiting for authentication in browser...";
-    console.log(chalk.dim(`\nIf browser doesn't open, visit: ${authUrl}`));
+    console.log(chalk.dim(`\nIf browser doesn't open, visit:\n  ${authUrl}`));
 
     const result = await pollForAuth(sessionId);
 
@@ -126,6 +131,16 @@ async function headlessLogin(): Promise<void> {
         }
         return true;
       },
+    },
+    {
+      type: "list",
+      name: "accountType",
+      message: "Account type:",
+      choices: [
+        { name: "Consumer (API caller)", value: "consumer" },
+        { name: "Publisher (API provider)", value: "publisher" },
+      ],
+      default: "consumer",
     },
   ]);
 
@@ -172,6 +187,7 @@ async function headlessLogin(): Promise<void> {
         message,
         signature,
         address: account.address,
+        type: answers.accountType,
       }),
     });
 

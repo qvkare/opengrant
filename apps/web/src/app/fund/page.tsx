@@ -145,6 +145,12 @@ export default function FundExplorePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* Testnet Banner */}
+      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center text-sm">
+        <span className="font-medium text-yellow-700">Base Sepolia Testnet</span>
+        <span className="text-yellow-600"> — All donations use test USDC. No real funds involved.</span>
+      </div>
+
       {/* Stats Banner */}
       {stats && (
         <div className="mb-8 p-6 bg-gray-50 border border-gray-100 rounded-xl">
