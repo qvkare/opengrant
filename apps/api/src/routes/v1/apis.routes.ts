@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getDb, apis, endpoints, publishers } from "@opengrant/database";
+import { getDb, apis, endpoints, publishers, githubRepos } from "@opengrant/database";
 import { eq, and, desc } from "drizzle-orm";
 import { authMiddleware, requirePublisher, AuthRequest } from "../../middleware/auth.middleware.js";
 
@@ -116,9 +116,27 @@ router.get("/:slug", async (req: Request, res: Response) => {
       .from(endpoints)
       .where(and(eq(endpoints.apiId, api.id), eq(endpoints.isActive, true)));
 
+    // Get linked GitHub repo info if any
+    let githubRepo = null;
+    if (api.githubRepoId) {
+      const [repo] = await db
+        .select({
+          owner: githubRepos.owner,
+          name: githubRepos.name,
+          repoHash: githubRepos.repoHash,
+        })
+        .from(githubRepos)
+        .where(eq(githubRepos.id, api.githubRepoId))
+        .limit(1);
+      if (repo) {
+        githubRepo = repo;
+      }
+    }
+
     res.json({
       ...api,
       endpoints: apiEndpoints,
+      githubRepo,
     });
   } catch (error) {
     console.error("Error fetching API:", error);

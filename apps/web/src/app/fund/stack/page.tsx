@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiAuth } from "@/hooks/useApiAuth";
-import { analyzeStack } from "@/lib/api";
+import { useWallet } from "@/contexts/wallet-context";
+import { useEscrow, type TxStatus } from "@/hooks/useEscrow";
+import { analyzeStack, executeStackFunding } from "@/lib/api";
 
 interface Dependency {
   name: string;
@@ -45,8 +47,32 @@ function formatUSDCAmount(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
 
+function TxStatusBadge({ status }: { status: TxStatus }) {
+  if (status === "idle") return null;
+  const labels: Record<TxStatus, { text: string; className: string }> = {
+    idle: { text: "", className: "" },
+    approving: { text: "Approving USDC spend...", className: "bg-yellow-500/10 text-yellow-600" },
+    sending: { text: "Sending batch transaction...", className: "bg-blue-500/10 text-blue-600" },
+    confirming: { text: "Confirming on-chain...", className: "bg-blue-500/10 text-blue-600" },
+    success: { text: "Funding complete!", className: "bg-green-500/10 text-green-600" },
+    error: { text: "Transaction failed", className: "bg-red-500/10 text-red-600" },
+  };
+  const label = labels[status];
+  return (
+    <div className={`p-3 rounded-xl text-sm text-center font-medium ${label.className}`}>
+      {status !== "success" && status !== "error" && (
+        <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2 align-middle" />
+      )}
+      {label.text}
+    </div>
+  );
+}
+
 export default function StackFundPage() {
-  const { token } = useApiAuth();
+  const { token, authenticate } = useApiAuth();
+  const { isConnected, setOpen: openConnectModal } = useWallet();
+  const escrow = useEscrow();
+
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [packageManager, setPackageManager] = useState<string | null>(null);
@@ -62,11 +88,14 @@ export default function StackFundPage() {
     handleFile(file);
   }, []);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    handleFile(file);
-  }, []);
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      handleFile(file);
+    },
+    []
+  );
 
   function handleFile(file: File) {
     const MAX_FILE_SIZE = 512 * 1024; // 512KB
@@ -77,7 +106,9 @@ export default function StackFundPage() {
 
     const pm = detectPackageManager(file.name);
     if (!pm) {
-      setError("Unsupported file. Please upload package.json, Cargo.toml, or go.mod");
+      setError(
+        "Unsupported file. Please upload package.json, Cargo.toml, or go.mod"
+      );
       return;
     }
     setPackageManager(pm);
@@ -92,12 +123,21 @@ export default function StackFundPage() {
   }
 
   async function handleAnalyze() {
-    if (!fileContent || !packageManager || !token) return;
+    if (!fileContent || !packageManager) return;
+
+    let apiToken = token;
+    if (!apiToken) {
+      apiToken = await authenticate();
+      if (!apiToken) {
+        setError("Failed to authenticate. Please connect your wallet.");
+        return;
+      }
+    }
 
     setAnalyzing(true);
     setError(null);
     try {
-      const result = await analyzeStack(token, {
+      const result = await analyzeStack(apiToken, {
         content: fileContent,
         packageManager,
       });
@@ -110,19 +150,69 @@ export default function StackFundPage() {
   }
 
   const budgetNum = parseFloat(budget) || 0;
-  const distributions = analysis?.scores
-    .map((dep) => ({
-      ...dep,
-      amount: Math.floor(dep.score * budgetNum * 100) / 100,
-    }))
-    .filter((d) => d.amount >= 1)
-    .sort((a, b) => b.amount - a.amount) || [];
+  const distributions =
+    analysis?.scores
+      .map((dep) => ({
+        ...dep,
+        amount: Math.floor(dep.score * budgetNum * 100) / 100,
+      }))
+      .filter((d) => d.amount >= 1 && d.repoHash)
+      .sort((a, b) => b.amount - a.amount) || [];
+
+  async function handleFundStack() {
+    if (distributions.length === 0 || !analysis) return;
+
+    if (!isConnected) {
+      openConnectModal(true);
+      return;
+    }
+
+    let apiToken = token;
+    if (!apiToken) {
+      apiToken = await authenticate();
+      if (!apiToken) {
+        setError("Failed to authenticate. Please try again.");
+        return;
+      }
+    }
+
+    escrow.reset();
+    setError(null);
+
+    try {
+      const repoHashes = distributions.map(
+        (d) => d.repoHash as `0x${string}`
+      );
+      const amounts = distributions.map((d) => d.amount.toFixed(2));
+      const flags = distributions.map(() => false);
+
+      // Execute batch donate on-chain
+      const txHash = await escrow.batchDonate(repoHashes, amounts, flags);
+
+      // Record in backend
+      await executeStackFunding(apiToken, {
+        analysisId: analysis.analysisId,
+        txHash,
+        chainId: escrow.chainId,
+        budget: budgetNum.toString(),
+      });
+    } catch (err: any) {
+      setError(err.shortMessage || err.message || "Transaction failed");
+    }
+  }
+
+  const isBusy =
+    escrow.txStatus !== "idle" &&
+    escrow.txStatus !== "success" &&
+    escrow.txStatus !== "error";
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-        <Link href="/fund" className="hover:text-foreground">Fund</Link>
+        <Link href="/fund" className="hover:text-foreground">
+          Fund
+        </Link>
         <span>/</span>
         <span>Stack Fund</span>
       </div>
@@ -130,8 +220,8 @@ export default function StackFundPage() {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-3">Fund Your Stack</h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
-          Upload your dependency manifest to distribute funding across all the open source
-          projects your application depends on.
+          Upload your dependency manifest to distribute funding across all the
+          open source projects your application depends on.
         </p>
       </div>
 
@@ -146,10 +236,22 @@ export default function StackFundPage() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleFileDrop}
               className="border-2 border-dashed rounded-lg p-8 text-center hover:border-black/30 transition-colors cursor-pointer"
-              onClick={() => document.getElementById("file-input")?.click()}
+              onClick={() =>
+                document.getElementById("file-input")?.click()
+              }
             >
-              <svg className="mx-auto h-12 w-12 text-muted-foreground mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              <svg
+                className="mx-auto h-12 w-12 text-muted-foreground mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
               </svg>
               <p className="text-sm font-medium mb-1">
                 {fileName || "Drop your file here or click to browse"}
@@ -172,13 +274,16 @@ export default function StackFundPage() {
                   <Badge variant="secondary">{packageManager}</Badge>
                   <span className="text-sm">{fileName}</span>
                 </div>
-                <Button onClick={handleAnalyze} disabled={analyzing || !token}>
+                <Button
+                  onClick={handleAnalyze}
+                  disabled={analyzing || !isConnected}
+                >
                   {analyzing ? "Analyzing..." : "Analyze Dependencies"}
                 </Button>
               </div>
             )}
 
-            {!token && fileName && (
+            {!isConnected && fileName && (
               <p className="text-sm text-yellow-600 mt-2">
                 Connect your wallet to analyze dependencies
               </p>
@@ -201,15 +306,21 @@ export default function StackFundPage() {
             <CardContent>
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="text-center p-3 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{analysis.totalDependencies}</p>
+                  <p className="text-2xl font-bold">
+                    {analysis.totalDependencies}
+                  </p>
                   <p className="text-xs text-muted-foreground">Total Deps</p>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{analysis.dependencies.length}</p>
+                  <p className="text-2xl font-bold">
+                    {analysis.dependencies.length}
+                  </p>
                   <p className="text-xs text-muted-foreground">Resolved</p>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{analysis.unresolved.length}</p>
+                  <p className="text-2xl font-bold">
+                    {analysis.unresolved.length}
+                  </p>
                   <p className="text-xs text-muted-foreground">Unresolved</p>
                 </div>
               </div>
@@ -221,7 +332,9 @@ export default function StackFundPage() {
                   </summary>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {analysis.unresolved.map((pkg) => (
-                      <Badge key={pkg} variant="outline" className="text-xs">{pkg}</Badge>
+                      <Badge key={pkg} variant="outline" className="text-xs">
+                        {pkg}
+                      </Badge>
                     ))}
                   </div>
                 </details>
@@ -240,9 +353,12 @@ export default function StackFundPage() {
                   {[25, 50, 100, 250, 500].map((amt) => (
                     <Button
                       key={amt}
-                      variant={budget === amt.toString() ? "default" : "outline"}
+                      variant={
+                        budget === amt.toString() ? "default" : "outline"
+                      }
                       size="sm"
                       onClick={() => setBudget(amt.toString())}
+                      disabled={isBusy}
                     >
                       ${amt}
                     </Button>
@@ -255,6 +371,7 @@ export default function StackFundPage() {
                   max="10000"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
+                  disabled={isBusy}
                 />
               </div>
             </CardContent>
@@ -269,11 +386,18 @@ export default function StackFundPage() {
               {distributions.length > 0 ? (
                 <div className="space-y-2">
                   {distributions.map((dep) => (
-                    <div key={dep.repoHash} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                    <div
+                      key={dep.repoHash}
+                      className="flex items-center justify-between py-2 border-b last:border-b-0"
+                    >
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{dep.owner}/{dep.repo}</span>
+                        <span className="text-sm font-medium">
+                          {dep.owner}/{dep.repo}
+                        </span>
                         {dep.isDirect && (
-                          <Badge variant="secondary" className="text-xs">direct</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            direct
+                          </Badge>
                         )}
                       </div>
                       <div className="text-right">
@@ -289,7 +413,9 @@ export default function StackFundPage() {
                   <div className="flex justify-between pt-3 font-medium">
                     <span>Total</span>
                     <span className="text-green-500">
-                      {formatUSDCAmount(distributions.reduce((sum, d) => sum + d.amount, 0))}
+                      {formatUSDCAmount(
+                        distributions.reduce((sum, d) => sum + d.amount, 0)
+                      )}
                     </span>
                   </div>
                 </div>
@@ -301,14 +427,65 @@ export default function StackFundPage() {
             </CardContent>
           </Card>
 
-          <Button className="w-full" size="lg" disabled={distributions.length === 0}>
-            Fund {distributions.length} Projects - ${budget} USDC
+          <TxStatusBadge status={escrow.txStatus} />
+
+          {escrow.error && (
+            <div className="p-3 bg-red-500/10 rounded-xl text-sm text-red-600 text-center mb-4">
+              {escrow.error}
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-500/10 rounded-xl text-sm text-red-600 text-center mb-4">
+              {error}
+            </div>
+          )}
+
+          {escrow.txHash && escrow.txStatus === "success" && (
+            <div className="p-3 bg-green-500/10 rounded-xl text-sm text-center mb-4">
+              <p className="font-medium text-green-600 mb-1">
+                Successfully funded {distributions.length} projects!
+              </p>
+              <a
+                href={`https://sepolia.basescan.org/tx/${escrow.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 underline text-xs"
+              >
+                View transaction on BaseScan
+              </a>
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            size="lg"
+            disabled={distributions.length === 0 || isBusy}
+            onClick={handleFundStack}
+          >
+            {isBusy ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                Processing...
+              </>
+            ) : !isConnected ? (
+              "Connect Wallet to Fund"
+            ) : (
+              `Fund ${distributions.length} Projects - $${distributions.reduce((sum, d) => sum + d.amount, 0).toFixed(2)} USDC`
+            )}
           </Button>
 
           <div className="flex justify-center mt-4">
             <Button
               variant="ghost"
-              onClick={() => { setAnalysis(null); setFileContent(null); setFileName(""); }}
+              disabled={isBusy}
+              onClick={() => {
+                setAnalysis(null);
+                setFileContent(null);
+                setFileName("");
+                escrow.reset();
+                setError(null);
+              }}
             >
               Start Over
             </Button>

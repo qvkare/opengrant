@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatAddress, formatNumber } from "@/lib/utils";
-import { getFundedRepo, getRepoDonors } from "@/lib/api";
+import { getFundedRepo, getRepoDonors, recordDonation } from "@/lib/api";
+import { useApiAuth } from "@/hooks/useApiAuth";
+import { useWallet } from "@/contexts/wallet-context";
+import { useEscrow, type TxStatus } from "@/hooks/useEscrow";
 
 interface RepoDetail {
   id: string;
@@ -59,10 +62,35 @@ function formatUSDCAmount(amount: string): string {
   return "$0";
 }
 
+function TxStatusBadge({ status }: { status: TxStatus }) {
+  if (status === "idle") return null;
+  const labels: Record<TxStatus, { text: string; className: string }> = {
+    idle: { text: "", className: "" },
+    approving: { text: "Approving USDC...", className: "bg-yellow-500/10 text-yellow-600" },
+    sending: { text: "Sending transaction...", className: "bg-blue-500/10 text-blue-600" },
+    confirming: { text: "Confirming on-chain...", className: "bg-blue-500/10 text-blue-600" },
+    success: { text: "Transaction confirmed!", className: "bg-green-500/10 text-green-600" },
+    error: { text: "Transaction failed", className: "bg-red-500/10 text-red-600" },
+  };
+  const label = labels[status];
+  return (
+    <div className={`p-3 rounded-xl text-sm text-center font-medium ${label.className}`}>
+      {status !== "success" && status !== "error" && (
+        <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2 align-middle" />
+      )}
+      {label.text}
+    </div>
+  );
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const owner = params.owner as string;
   const name = params.name as string;
+
+  const { token, authenticate } = useApiAuth();
+  const { isConnected, setOpen: openConnectModal } = useWallet();
+  const escrow = useEscrow();
 
   const [repo, setRepo] = useState<RepoDetail | null>(null);
   const [donors, setDonors] = useState<Donor[]>([]);
@@ -88,6 +116,71 @@ export default function ProjectDetailPage() {
     fetchData();
   }, [owner, name]);
 
+  async function refreshData() {
+    try {
+      const [repoData, donorData] = await Promise.all([
+        getFundedRepo(owner, name),
+        getRepoDonors(owner, name, { limit: 10 }),
+      ]);
+      setRepo(repoData);
+      setDonors(donorData.data);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDonate() {
+    const amount = parseFloat(donateAmount);
+    if (!amount || amount < 1) return;
+
+    if (!isConnected) {
+      openConnectModal(true);
+      return;
+    }
+
+    // Ensure we have an API token
+    let apiToken = token;
+    if (!apiToken) {
+      apiToken = await authenticate();
+      if (!apiToken) {
+        escrow.setError("Failed to authenticate. Please try again.");
+        return;
+      }
+    }
+
+    if (!repo?.repoHash) {
+      escrow.setError("Repository hash not available");
+      return;
+    }
+
+    escrow.reset();
+
+    try {
+      const repoHash = repo.repoHash as `0x${string}`;
+      const txHash = await escrow.donate(repoHash, donateAmount, redistributeOnTimeout);
+
+      // Record the donation in the backend (best-effort; on-chain tx already succeeded)
+      try {
+        await recordDonation(apiToken, {
+          repoId: repo.id,
+          txHash,
+          chainId: escrow.chainId,
+          amount: donateAmount,
+          redistributeOnTimeout,
+          source: "direct",
+        });
+      } catch {
+        // On-chain donation succeeded but backend recording failed.
+        // The on-chain state is authoritative; data will sync eventually.
+      }
+
+      // Refresh data after successful donation
+      await refreshData();
+    } catch (err: any) {
+      escrow.setError(err.shortMessage || err.message || "Transaction failed");
+    }
+  }
+
   if (loading) {
     return (
       <div className="container py-8 flex justify-center">
@@ -109,6 +202,10 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
+
+  const amountNum = parseFloat(donateAmount);
+  const isValidAmount = amountNum >= 1 && amountNum <= 1_000_000;
+  const isBusy = escrow.txStatus !== "idle" && escrow.txStatus !== "success" && escrow.txStatus !== "error";
 
   return (
     <div className="container py-8 max-w-4xl">
@@ -215,6 +312,7 @@ export default function ProjectDetailPage() {
                   variant={donateAmount === amt.toString() ? "default" : "outline"}
                   size="sm"
                   onClick={() => setDonateAmount(amt.toString())}
+                  disabled={isBusy}
                 >
                   ${amt}
                 </Button>
@@ -228,6 +326,7 @@ export default function ProjectDetailPage() {
               value={donateAmount}
               onChange={(e) => setDonateAmount(e.target.value)}
               placeholder="Custom amount"
+              disabled={isBusy}
             />
           </div>
 
@@ -238,18 +337,50 @@ export default function ProjectDetailPage() {
               checked={redistributeOnTimeout}
               onChange={(e) => setRedistributeOnTimeout(e.target.checked)}
               className="rounded"
+              disabled={isBusy}
             />
             <Label htmlFor="redistribute" className="text-sm font-normal">
               If unclaimed after 1 year, allow redistribution to other projects
             </Label>
           </div>
 
+          <TxStatusBadge status={escrow.txStatus} />
+
+          {escrow.error && (
+            <div className="p-3 bg-red-500/10 rounded-xl text-sm text-red-600 text-center">
+              {escrow.error}
+            </div>
+          )}
+
+          {escrow.txHash && escrow.txStatus === "success" && (
+            <div className="p-3 bg-green-500/10 rounded-xl text-sm text-center">
+              <a
+                href={`https://sepolia.basescan.org/tx/${escrow.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 underline"
+              >
+                View transaction on BaseScan
+              </a>
+            </div>
+          )}
+
           <Button
             className="w-full"
             size="lg"
-            disabled={!donateAmount || parseFloat(donateAmount) < 1 || parseFloat(donateAmount) > 1_000_000}
+            disabled={!donateAmount || !isValidAmount || isBusy}
+            onClick={handleDonate}
           >
-            Donate ${donateAmount} USDC
+            {isBusy ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                Processing...
+              </>
+            ) : !isConnected ? (
+              "Connect Wallet to Donate"
+            ) : (
+              `Donate $${donateAmount} USDC`
+            )}
           </Button>
           {donateAmount && parseFloat(donateAmount) < 1 && (
             <p className="text-xs text-red-500 text-center">Minimum donation is 1 USDC</p>
@@ -275,7 +406,7 @@ export default function ProjectDetailPage() {
               {repo.linkedApis.map((api) => (
                 <Link
                   key={api.id}
-                  href={`/apis/${api.slug}`}
+                  href={`/${api.slug}`}
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
                 >
                   <div>

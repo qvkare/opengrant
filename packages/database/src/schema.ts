@@ -85,6 +85,7 @@ export const donationSourceEnum = pgEnum("donation_source", [
   "direct",
   "stack",
   "explore",
+  "api_tip",
 ]);
 
 // ============================================

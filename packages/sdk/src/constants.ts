@@ -118,6 +118,24 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
   },
 } as const;
 
+/**
+ * Escrow contract addresses per chain.
+ * Only chains with deployed escrow contracts are listed.
+ */
+export const ESCROW_ADDRESSES: Partial<Record<number, `0x${string}`>> = {
+  84532: "0x6c21371a0758c525f8632ee6466d0b7c35538953", // Base Sepolia
+} as const;
+
+/**
+ * Get escrow address for a chain.
+ * @returns the escrow address or undefined if not deployed on that chain
+ */
+export function getEscrowAddress(
+  chainId: number
+): `0x${string}` | undefined {
+  return ESCROW_ADDRESSES[chainId];
+}
+
 /** Default chain ID (Base) */
 export const DEFAULT_CHAIN_ID = 8453;
 

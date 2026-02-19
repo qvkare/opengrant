@@ -1,4 +1,4 @@
-import { createPublicClient, http, formatUnits } from "viem";
+import { createPublicClient, http, formatUnits, parseUnits } from "viem";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_TIMEOUT,
@@ -9,6 +9,7 @@ import {
   X402_VERSION,
   getChainConfig,
   getUSDCAddress,
+  getEscrowAddress,
 } from "./constants.js";
 import {
   OpenGrantError,
@@ -30,9 +31,13 @@ import type {
   UsageStats,
   WalletBalance,
   APIInfo,
+  DonationConfig,
+  DonationResult,
+  RepoFundInfo,
+  Donation,
 } from "./types.js";
 
-// USDC ABI (minimal for balanceOf)
+// USDC ABI (minimal for balanceOf + approve + allowance)
 const USDC_ABI = [
   {
     name: "balanceOf",
@@ -40,6 +45,41 @@ const USDC_ABI = [
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+// Escrow ABI (minimal for donate)
+const ESCROW_ABI = [
+  {
+    name: "donate",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "repoHash", type: "bytes32" },
+      { name: "amount", type: "uint256" },
+      { name: "redistributeOnTimeout", type: "bool" },
+    ],
+    outputs: [],
   },
 ] as const;
 
@@ -76,9 +116,11 @@ export class OpenGrant {
   private readonly maxRetries: number;
   private readonly debug: boolean;
   private readonly chainId: number;
+  private readonly tipPercentage: number;
   private readonly signer?: PaymentSigner;
   private readonly publicClient;
   private readonly usdcAddress: `0x${string}`;
+  private readonly viemChain: { id: number; name: string };
 
   constructor(config: OpenGrantConfig) {
     if (!config.apiKey) {
@@ -96,10 +138,12 @@ export class OpenGrant {
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.debug = config.debug ?? false;
     this.chainId = config.chainId ?? DEFAULT_CHAIN_ID;
+    this.tipPercentage = Math.min(Math.max(config.tipPercentage ?? 0, 0), 100);
 
     // Resolve chain-specific config
     const chainConfig = getChainConfig(this.chainId);
     this.usdcAddress = chainConfig.usdc;
+    this.viemChain = { id: chainConfig.chainId, name: chainConfig.name };
     const rpcUrl = config.rpcUrl ?? chainConfig.rpcUrl;
 
     // Initialize signer if wallet credentials provided
@@ -380,7 +424,7 @@ export class OpenGrant {
         const paymentAmount = response.headers.get("X-402-Payment-Amount");
         const paymentTx = response.headers.get("X-402-Payment-Tx");
 
-        return {
+        const result: APIResponse<T> = {
           data: data as T,
           status: response.status,
           headers: responseHeaders,
@@ -391,6 +435,15 @@ export class OpenGrant {
               }
             : undefined,
         };
+
+        // Fire-and-forget: tip linked OSS project if tipPercentage > 0 and a payment was made
+        if (this.tipPercentage > 0 && paymentAmount && this.signer) {
+          this.tipLinkedRepo(apiSlug, paymentAmount).catch((err) => {
+            this.log("Tip failed:", err.message);
+          });
+        }
+
+        return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -536,5 +589,288 @@ export class OpenGrant {
    */
   get address(): string | undefined {
     return this.signer?.address;
+  }
+
+  /**
+   * Tip the linked OSS project after a paid API call (fire-and-forget).
+   * Looks up the API's linked GitHub repo and donates a percentage of the payment.
+   */
+  private async tipLinkedRepo(
+    apiSlug: string,
+    paymentAmountWei: string
+  ): Promise<void> {
+    const escrowAddress = getEscrowAddress(this.chainId);
+    if (!escrowAddress || !this.signer) return;
+
+    // Fetch API info to check for linked repo
+    const apiInfo = await this.getAPIInfo(apiSlug);
+    if (!apiInfo.githubRepo?.repoHash) return;
+
+    // Calculate tip amount (percentage of payment in USDC wei)
+    const paymentBigInt = BigInt(paymentAmountWei);
+    const tipAmount = (paymentBigInt * BigInt(Math.round(this.tipPercentage * 100))) / 10000n;
+    if (tipAmount <= 0n) return;
+
+    this.log(
+      `Tipping ${formatUnits(tipAmount, USDC_DECIMALS)} USDC to ${apiInfo.githubRepo.owner}/${apiInfo.githubRepo.name}`
+    );
+
+    // Ensure allowance
+    const allowance = await this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: USDC_ABI,
+      functionName: "allowance",
+      args: [this.signer.address as `0x${string}`, escrowAddress],
+    });
+
+    const walletClient = this.signer.getWalletClient();
+
+    if (allowance < tipAmount) {
+      // Approve a larger amount (1000 USDC) to avoid repeated approve txs for each tip
+      const approveAmount = parseUnits("1000", USDC_DECIMALS);
+      const approveHash = await walletClient.writeContract({
+        address: this.usdcAddress,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [escrowAddress, approveAmount > tipAmount ? approveAmount : tipAmount],
+        chain: this.viemChain as any,
+        account: this.signer!.address as `0x${string}`,
+      });
+      await this.publicClient.waitForTransactionReceipt({ hash: approveHash });
+    }
+
+    // Donate on-chain
+    const repoHash = apiInfo.githubRepo.repoHash as `0x${string}`;
+    const txHash = await walletClient.writeContract({
+      address: escrowAddress,
+      abi: ESCROW_ABI,
+      functionName: "donate",
+      args: [repoHash, tipAmount, false],
+      chain: this.viemChain as any,
+      account: this.signer!.address as `0x${string}`,
+    });
+
+    await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    // Record in backend (best-effort)
+    try {
+      const repoInfo = await this.getRepoFundInfo(
+        apiInfo.githubRepo.owner,
+        apiInfo.githubRepo.name
+      );
+      await this.fetchWithTimeout(
+        `${this.baseUrl}/v1/fund/donate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repoId: repoInfo.id,
+            txHash,
+            chainId: this.chainId,
+            amount: formatUnits(tipAmount, USDC_DECIMALS),
+            redistributeOnTimeout: false,
+            source: "api_tip",
+          }),
+        },
+        this.timeout
+      );
+    } catch {
+      this.log("Warning: Failed to record tip in backend");
+    }
+
+    this.log(`Tip successful: ${txHash}`);
+  }
+
+  /**
+   * Donate to an open source repository via the escrow contract
+   *
+   * @param config - Donation configuration
+   * @returns Donation result with transaction hash
+   */
+  async donate(config: DonationConfig): Promise<DonationResult> {
+    if (!this.signer) {
+      throw new OpenGrantError({
+        message: "Wallet required for donations. Provide privateKey or walletClient.",
+        code: "NO_WALLET",
+        status: 0,
+      });
+    }
+
+    const escrowAddress = getEscrowAddress(this.chainId);
+    if (!escrowAddress) {
+      throw new OpenGrantError({
+        message: `Escrow contract not deployed on chain ${this.chainId}`,
+        code: "ESCROW_NOT_DEPLOYED",
+        status: 0,
+      });
+    }
+
+    // Fetch repo info from backend to get repoId and repoHash
+    const repoInfo = await this.getRepoFundInfo(config.repoOwner, config.repoName);
+    const repoHash = repoInfo.repoHash as `0x${string}`;
+
+    const amount = parseUnits(config.amount, USDC_DECIMALS);
+
+    // Check USDC balance
+    const balance = await this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: USDC_ABI,
+      functionName: "balanceOf",
+      args: [this.signer.address as `0x${string}`],
+    });
+
+    if (balance < amount) {
+      throw new InsufficientBalanceError(amount, balance);
+    }
+
+    // Check and set USDC allowance for escrow
+    const allowance = await this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: USDC_ABI,
+      functionName: "allowance",
+      args: [this.signer.address as `0x${string}`, escrowAddress],
+    });
+
+    if (allowance < amount) {
+      this.log(`Approving ${formatUnits(amount, USDC_DECIMALS)} USDC for escrow`);
+      const walletClient = this.signer.getWalletClient();
+      const approveHash = await walletClient.writeContract({
+        address: this.usdcAddress,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [escrowAddress, amount],
+        chain: this.viemChain as any,
+        account: this.signer.address as `0x${string}`,
+      });
+      await this.publicClient.waitForTransactionReceipt({ hash: approveHash });
+    }
+
+    // Execute on-chain donation
+    this.log(`Donating ${config.amount} USDC to ${config.repoOwner}/${config.repoName}`);
+    const walletClient = this.signer.getWalletClient();
+    const txHash = await walletClient.writeContract({
+      address: escrowAddress,
+      abi: ESCROW_ABI,
+      functionName: "donate",
+      args: [repoHash, amount, config.redistributeOnTimeout ?? false],
+      chain: this.viemChain as any,
+      account: this.signer.address as `0x${string}`,
+    });
+
+    await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    // Record in backend
+    try {
+      await this.fetchWithTimeout(
+        `${this.baseUrl}/v1/fund/donate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repoId: repoInfo.id,
+            txHash,
+            chainId: this.chainId,
+            amount: config.amount,
+            redistributeOnTimeout: config.redistributeOnTimeout ?? false,
+            source: "direct",
+          }),
+        },
+        this.timeout
+      );
+    } catch {
+      this.log("Warning: Failed to record donation in backend (on-chain tx succeeded)");
+    }
+
+    return {
+      txHash,
+      repoHash: repoInfo.repoHash,
+      amount: config.amount,
+      chainId: this.chainId,
+    };
+  }
+
+  /**
+   * Get funding info for a GitHub repository
+   *
+   * @param owner - GitHub owner (e.g. "facebook")
+   * @param name - GitHub repo name (e.g. "react")
+   */
+  async getRepoFundInfo(owner: string, name: string): Promise<RepoFundInfo> {
+    const response = await this.fetchWithTimeout(
+      `${this.baseUrl}/v1/fund/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+      {},
+      this.timeout
+    );
+
+    if (response.status === 404) {
+      throw new OpenGrantError({
+        message: `Repository ${owner}/${name} not found in funding database`,
+        code: "REPO_NOT_FOUND",
+        status: 404,
+      });
+    }
+
+    if (!response.ok) {
+      throw new OpenGrantError({
+        message: "Failed to fetch repo fund info",
+        code: "API_ERROR",
+        status: response.status,
+      });
+    }
+
+    const data = (await response.json()) as any;
+    return {
+      id: data.id,
+      owner: data.owner,
+      name: data.name,
+      totalFunded: data.totalFunded,
+      donorCount: data.donorCount,
+      claimStatus: data.claimStatus,
+      repoHash: data.repoHash,
+    };
+  }
+
+  /**
+   * Get the current user's donation history
+   *
+   * @param params - Pagination parameters
+   */
+  async getMyDonations(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{ data: Donation[]; pagination: { limit: number; offset: number; total: number } }> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.offset) query.set("offset", params.offset.toString());
+    const qs = query.toString();
+
+    const response = await this.fetchWithTimeout(
+      `${this.baseUrl}/v1/fund/my-donations${qs ? `?${qs}` : ""}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      },
+      this.timeout
+    );
+
+    if (!response.ok) {
+      throw new OpenGrantError({
+        message: "Failed to fetch donations",
+        code: "API_ERROR",
+        status: response.status,
+      });
+    }
+
+    return response.json() as Promise<{
+      data: Donation[];
+      pagination: { limit: number; offset: number; total: number };
+    }>;
   }
 }

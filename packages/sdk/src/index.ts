@@ -32,6 +32,9 @@ export {
   getUSDCAddress,
   getNetworkId,
   getUSDCDomain,
+  // Escrow
+  ESCROW_ADDRESSES,
+  getEscrowAddress,
   // Legacy (backward compat)
   BASE_CHAIN_ID,
   USDC_ADDRESS,
@@ -49,6 +52,10 @@ export type {
   UsageStats,
   WalletBalance,
   APIInfo,
+  DonationConfig,
+  DonationResult,
+  RepoFundInfo,
+  Donation,
 } from "./types.js";
 
 export type { ChainConfig } from "./constants.js";

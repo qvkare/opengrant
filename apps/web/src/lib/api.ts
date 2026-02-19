@@ -252,6 +252,39 @@ export async function getConsumerUsage(
 }
 
 // ============================================
+// Consumer Profile
+// ============================================
+
+export async function getConsumerProfile(token: string) {
+  return apiFetch<{
+    id: string;
+    walletAddress: string;
+    name: string | null;
+    email: string | null;
+    creditBalance: string;
+    settings: Record<string, any>;
+    createdAt: string;
+  }>("/v1/consumer/profile", {
+    headers: withAuth(token),
+  });
+}
+
+export async function updateConsumerSettings(
+  token: string,
+  settings: Record<string, any>
+) {
+  return apiFetch<{
+    id: string;
+    settings: Record<string, any>;
+    updatedAt: string;
+  }>("/v1/consumer/profile", {
+    method: "PUT",
+    headers: withAuth(token),
+    body: JSON.stringify({ settings }),
+  });
+}
+
+// ============================================
 // Publisher Stats & Data
 // ============================================
 

@@ -78,16 +78,26 @@ export async function activateApi(slug: string): Promise<void> {
     const apiUrl = getApiUrl();
     const token = getToken();
 
-    // First resolve slug → API info
-    const lookupResp = await fetch(`${apiUrl}/v1/apis/${slug}`, {
+    // Resolve slug → API info via publisher endpoint (includes draft APIs)
+    const lookupResp = await fetch(`${apiUrl}/v1/publisher/apis`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!lookupResp.ok) {
-      throw new Error(lookupResp.status === 404 ? `API "${slug}" not found` : `Failed to look up API: ${lookupResp.statusText}`);
+      throw new Error(`Failed to list your APIs: ${lookupResp.statusText}`);
     }
 
-    const api = await lookupResp.json() as { id: string; name?: string };
+    const allApis = await lookupResp.json() as { id: string; slug: string; name?: string; status?: string }[];
+    const api = allApis.find((a) => a.slug === slug);
+
+    if (!api) {
+      throw new Error(`API "${slug}" not found. Make sure you own this API.`);
+    }
+
+    if (api.status === "active") {
+      spinner.info(chalk.yellow(`API "${api.name || slug}" is already active`));
+      return;
+    }
 
     // Publish the API
     const publishResp = await fetch(`${apiUrl}/v1/publisher/apis/${api.id}/publish`, {
@@ -103,9 +113,12 @@ export async function activateApi(slug: string): Promise<void> {
       throw new Error(body.error || `Failed: ${publishResp.statusText}`);
     }
 
-    const result = await publishResp.json() as { name?: string; status?: string };
-    spinner.succeed(chalk.green(`API "${result.name || slug}" is now active`));
+    const result = await publishResp.json() as { success?: boolean; status?: string; publishedAt?: string };
+    spinner.succeed(chalk.green(`API "${api.name || slug}" is now active`));
     console.log(chalk.dim(`  Status: ${result.status}`));
+    if (result.publishedAt) {
+      console.log(chalk.dim(`  Published at: ${result.publishedAt}`));
+    }
   } catch (error) {
     spinner.fail(chalk.red("Failed to activate API"));
     if (error instanceof Error) {

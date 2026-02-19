@@ -9,6 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiAuth } from "@/hooks/useApiAuth";
 import { useWallet } from "@/contexts/wallet-context";
+import { useEscrow, type TxStatus } from "@/hooks/useEscrow";
+import {
+  listFundedRepos,
+  getClaimAuthorization,
+  confirmClaim,
+} from "@/lib/api";
 
 interface ClaimableRepo {
   id: string;
@@ -26,21 +32,34 @@ function formatUSDCAmount(amount: string): string {
   return "$0";
 }
 
+function TxStatusInline({ status }: { status: TxStatus }) {
+  if (status === "idle" || status === "success") return null;
+  const labels: Record<string, string> = {
+    approving: "Approving...",
+    sending: "Sending...",
+    confirming: "Confirming...",
+    error: "Failed",
+  };
+  return (
+    <span className="text-xs text-muted-foreground ml-2">
+      {status !== "error" && (
+        <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1 align-middle" />
+      )}
+      {labels[status]}
+    </span>
+  );
+}
+
 export default function ClaimPage() {
-  const { token } = useApiAuth();
+  const { token, authenticate } = useApiAuth();
   const { address, isConnected } = useWallet();
+  const escrow = useEscrow();
   const [githubToken, setGithubToken] = useState("");
   const [repos, setRepos] = useState<ClaimableRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  async function handleGithubLogin() {
-    // In production, this would use GitHub OAuth flow
-    // For now, show manual token input
-    setError("GitHub OAuth integration requires GITHUB_CLIENT_ID to be configured. You can enter a GitHub Personal Access Token manually.");
-  }
 
   async function handleFetchRepos() {
     if (!githubToken) {
@@ -51,32 +70,63 @@ export default function ClaimPage() {
     setLoading(true);
     setError(null);
     try {
-      // Fetch user's repos from GitHub
-      const res = await fetch("https://api.github.com/user/repos?type=owner&sort=stars&per_page=100", {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github+json",
-        },
-      });
+      // Fetch user's repos from GitHub to get list of owned repos
+      const ghRes = await fetch(
+        "https://api.github.com/user/repos?type=owner&sort=stars&per_page=100",
+        {
+          headers: {
+            Authorization: `Bearer ${githubToken}`,
+            Accept: "application/vnd.github+json",
+          },
+        }
+      );
 
-      if (!res.ok) {
+      if (!ghRes.ok) {
         throw new Error("Invalid GitHub token");
       }
 
-      const ghRepos = await res.json();
-      // Filter to repos that might have escrow funds
-      // In production, this would cross-reference with our DB
-      setRepos(
-        ghRepos.slice(0, 20).map((r: any) => ({
-          id: r.id.toString(),
-          owner: r.owner.login,
-          name: r.name,
-          fullName: r.full_name,
-          totalFunded: "0", // Would come from our API
-          donorCount: 0,
-          repoHash: "",
-        }))
+      const ghRepos = await ghRes.json();
+      const ownerRepoNames = new Set(
+        ghRepos.map((r: any) => `${r.owner.login}/${r.name}`.toLowerCase())
       );
+
+      // Fetch funded repos from backend (paginate to get all)
+      const fundedRepos: any[] = [];
+      let offset = 0;
+      const pageSize = 100;
+      while (true) {
+        const page = await listFundedRepos({ limit: pageSize, offset });
+        fundedRepos.push(...(page.data as any[]));
+        if (page.data.length < pageSize) break;
+        offset += pageSize;
+      }
+
+      // Cross-reference: only show repos the user owns AND that have funds
+      const claimable: ClaimableRepo[] = fundedRepos
+        .filter(
+          (repo: any) =>
+            ownerRepoNames.has(`${repo.owner}/${repo.name}`.toLowerCase()) &&
+            parseFloat(repo.totalFunded || "0") > 0 &&
+            repo.claimStatus !== "claimed" &&
+            repo.claimStatus !== "opted_out"
+        )
+        .map((repo: any) => ({
+          id: repo.id,
+          owner: repo.owner,
+          name: repo.name,
+          fullName: repo.fullName || `${repo.owner}/${repo.name}`,
+          totalFunded: repo.totalFunded || "0",
+          donorCount: repo.donorCount || 0,
+          repoHash: repo.repoHash || "",
+        }));
+
+      setRepos(claimable);
+
+      if (claimable.length === 0) {
+        setError(
+          "No claimable repos found. Either your repos have no funds or they have already been claimed."
+        );
+      }
     } catch (err: any) {
       setError(err.message || "Failed to fetch repos");
     } finally {
@@ -84,11 +134,73 @@ export default function ClaimPage() {
     }
   }
 
+  async function handleClaim(repo: ClaimableRepo) {
+    if (!address || !isConnected) {
+      setError("Please connect your wallet first");
+      return;
+    }
+
+    if (!repo.repoHash) {
+      setError("Repository hash not available for claiming");
+      return;
+    }
+
+    let apiToken = token;
+    if (!apiToken) {
+      apiToken = await authenticate();
+      if (!apiToken) {
+        setError("Failed to authenticate. Please try again.");
+        return;
+      }
+    }
+
+    setClaiming(repo.id);
+    setError(null);
+    setSuccess(null);
+    escrow.reset();
+
+    try {
+      // Step 1: Get claim authorization from backend
+      const auth = await getClaimAuthorization(
+        apiToken,
+        { repoId: repo.id, walletAddress: address },
+        githubToken
+      );
+
+      // Step 2: Execute on-chain claim
+      const txHash = await escrow.claim(
+        auth.repoHash as `0x${string}`,
+        address as `0x${string}`,
+        BigInt(auth.nonce),
+        auth.signature as `0x${string}`
+      );
+
+      // Step 3: Confirm claim in backend
+      await confirmClaim(apiToken, {
+        repoId: repo.id,
+        txHash,
+      });
+
+      setSuccess(
+        `Successfully claimed funds for ${repo.fullName}! Tx: ${txHash.slice(0, 10)}...`
+      );
+
+      // Remove claimed repo from list
+      setRepos((prev) => prev.filter((r) => r.id !== repo.id));
+    } catch (err: any) {
+      setError(err.shortMessage || err.message || "Claim failed");
+    } finally {
+      setClaiming(null);
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-        <Link href="/fund" className="hover:text-foreground">Fund</Link>
+        <Link href="/fund" className="hover:text-foreground">
+          Fund
+        </Link>
         <span>/</span>
         <span>Claim</span>
       </div>
@@ -105,14 +217,18 @@ export default function ClaimPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">1</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">
+              1
+            </span>
             Connect Wallet
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isConnected && address ? (
             <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-xl">
-              <Badge variant="default" className="bg-green-600">Connected</Badge>
+              <Badge variant="default" className="bg-green-600">
+                Connected
+              </Badge>
               <span className="text-sm font-mono">
                 {address.slice(0, 6)}...{address.slice(-4)}
               </span>
@@ -129,14 +245,17 @@ export default function ClaimPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">2</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">
+              2
+            </span>
             Verify GitHub Ownership
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Enter a GitHub Personal Access Token with <code className="px-1 py-0.5 bg-muted rounded text-xs">repo</code> scope
-            to verify your repository ownership.
+            Enter a GitHub Personal Access Token with{" "}
+            <code className="px-1 py-0.5 bg-muted rounded text-xs">repo</code>{" "}
+            scope to verify your repository ownership.
           </p>
 
           <div className="space-y-2">
@@ -150,12 +269,17 @@ export default function ClaimPage() {
             />
           </div>
 
-          <Button onClick={handleFetchRepos} disabled={loading || !githubToken}>
-            {loading ? "Fetching..." : "Fetch My Repos"}
+          <Button
+            onClick={handleFetchRepos}
+            disabled={loading || !githubToken || !isConnected}
+          >
+            {loading ? "Fetching..." : "Find Claimable Repos"}
           </Button>
 
-          {error && (
-            <p className="text-sm text-red-500">{error}</p>
+          {!isConnected && githubToken && (
+            <p className="text-sm text-yellow-600">
+              Connect your wallet first (Step 1)
+            </p>
           )}
         </CardContent>
       </Card>
@@ -165,29 +289,38 @@ export default function ClaimPage() {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">3</span>
-              Your Repositories
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-black text-white text-sm">
+                3
+              </span>
+              Claimable Repositories
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {repos.map((repo) => (
-                <div key={repo.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl">
+                <div
+                  key={repo.id}
+                  className="flex items-center justify-between p-3 border border-gray-100 rounded-xl"
+                >
                   <div>
                     <p className="text-sm font-medium">{repo.fullName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {parseFloat(repo.totalFunded) > 0
-                        ? `${formatUSDCAmount(repo.totalFunded)} available`
-                        : "No funds available"}
+                      {formatUSDCAmount(repo.totalFunded)} from{" "}
+                      {repo.donorCount} donor{repo.donorCount !== 1 ? "s" : ""}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    disabled={parseFloat(repo.totalFunded) <= 0 || claiming === repo.id}
-                    variant={parseFloat(repo.totalFunded) > 0 ? "default" : "ghost"}
-                  >
-                    {claiming === repo.id ? "Claiming..." : "Claim"}
-                  </Button>
+                  <div className="flex items-center">
+                    <Button
+                      size="sm"
+                      disabled={claiming !== null}
+                      onClick={() => handleClaim(repo)}
+                    >
+                      {claiming === repo.id ? "Claiming..." : "Claim"}
+                    </Button>
+                    {claiming === repo.id && (
+                      <TxStatusInline status={escrow.txStatus} />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -195,9 +328,25 @@ export default function ClaimPage() {
         </Card>
       )}
 
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-center mb-6">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
       {success && (
-        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-center">
+        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-center mb-6">
           <p className="font-medium text-green-600">{success}</p>
+          {escrow.txHash && (
+            <a
+              href={`https://sepolia.basescan.org/tx/${escrow.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-green-600 underline mt-1 inline-block"
+            >
+              View on BaseScan
+            </a>
+          )}
         </div>
       )}
 
@@ -208,7 +357,8 @@ export default function ClaimPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">
-            You can also verify ownership by adding a FUNDING.yml file to your repository:
+            You can also verify ownership by adding a FUNDING.yml file to your
+            repository:
           </p>
           <pre className="p-3 bg-muted rounded-xl text-xs overflow-x-auto">
             {`# .github/FUNDING.yml

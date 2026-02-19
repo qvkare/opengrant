@@ -24,6 +24,8 @@ export interface OpenGrantConfig {
   maxRetries?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** Auto-tip percentage for linked OSS projects on paid API calls (0-100, default: 0) */
+  tipPercentage?: number;
 }
 
 /**
@@ -177,4 +179,74 @@ export interface APIInfo {
     description: string;
     pricePerCall: string;
   }>;
+  /** Linked GitHub repo info (if any) */
+  githubRepo?: {
+    owner: string;
+    name: string;
+    repoHash: string;
+  } | null;
+}
+
+/**
+ * Donation configuration
+ */
+export interface DonationConfig {
+  /** GitHub repository owner (e.g. "facebook") */
+  repoOwner: string;
+  /** GitHub repository name (e.g. "react") */
+  repoName: string;
+  /** USDC amount (human-readable, e.g. "10.00") */
+  amount: string;
+  /** If unclaimed after timeout, allow redistribution (default: false) */
+  redistributeOnTimeout?: boolean;
+}
+
+/**
+ * Donation result
+ */
+export interface DonationResult {
+  /** On-chain transaction hash */
+  txHash: string;
+  /** Repository hash (bytes32) */
+  repoHash: string;
+  /** Amount donated in USDC */
+  amount: string;
+  /** Chain ID where donation was made */
+  chainId: number;
+}
+
+/**
+ * Repository funding info
+ */
+export interface RepoFundInfo {
+  /** Repo ID in backend */
+  id: string;
+  /** GitHub owner */
+  owner: string;
+  /** GitHub repo name */
+  name: string;
+  /** Total funded in USDC */
+  totalFunded: string;
+  /** Number of unique donors */
+  donorCount: number;
+  /** Claim status */
+  claimStatus: string;
+  /** Repository hash (bytes32) */
+  repoHash: string;
+}
+
+/**
+ * Donation record
+ */
+export interface Donation {
+  id: string;
+  amount: string;
+  txHash: string;
+  chainId: number;
+  status: string;
+  source: string;
+  createdAt: string;
+  repoOwner: string;
+  repoName: string;
+  repoFullName: string;
 }

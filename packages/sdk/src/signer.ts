@@ -56,6 +56,13 @@ export class PaymentSigner {
   }
 
   /**
+   * Get the underlying wallet client for direct contract interactions
+   */
+  getWalletClient(): WalletClient {
+    return this.walletClient;
+  }
+
+  /**
    * Sign a payment authorization using EIP-3009 TransferWithAuthorization.
    * Uses the chain-specific USDC EIP-712 domain.
    */
