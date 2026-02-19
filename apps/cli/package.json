@@ -1,12 +1,16 @@
 {
   "name": "@opengrant/cli",
   "version": "0.1.0",
-  "description": "OpenGrant CLI - Manage your API monetization from the terminal",
+  "description": "OpenGrant CLI - Manage API monetization, USDC payments, and OSS funding from the terminal",
   "bin": {
-    "opengrant": "./dist/index.js"
+    "opengrant": "dist/index.js"
   },
   "main": "./dist/index.js",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -14,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opengrant/sdk": "workspace:*",
+    "@opengrant/sdk": "^0.1.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "conf": "^13.0.1",
@@ -29,10 +33,34 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
-  "keywords": ["opengrant", "cli", "api", "monetization", "x402", "crypto"],
+  "keywords": [
+    "opengrant",
+    "cli",
+    "api",
+    "monetization",
+    "x402",
+    "usdc",
+    "crypto",
+    "micropayments",
+    "base",
+    "blockchain",
+    "evm",
+    "open-source",
+    "funding",
+    "escrow",
+    "donate",
+    "web3"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/opengrant/opengrant"
+    "url": "git+https://github.com/qvkare/opengrant.git"
+  },
+  "homepage": "https://opengrant.dev",
+  "bugs": {
+    "url": "https://github.com/qvkare/opengrant/issues"
   },
   "license": "MIT"
 }
