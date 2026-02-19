@@ -124,7 +124,7 @@ describe("Consumer Routes", () => {
         updatedAt: new Date().toISOString(),
       };
 
-      vi.mocked(db.returning).mockResolvedValueOnce([updatedConsumer] as any);
+      vi.mocked((db as any).returning).mockResolvedValueOnce([updatedConsumer] as any);
 
       const res = await request(app)
         .put("/v1/consumer/profile")
@@ -136,7 +136,7 @@ describe("Consumer Routes", () => {
     });
 
     it("should return 404 if consumer not found during update", async () => {
-      vi.mocked(db.returning).mockResolvedValueOnce([] as any);
+      vi.mocked((db as any).returning).mockResolvedValueOnce([] as any);
 
       const res = await request(app)
         .put("/v1/consumer/profile")
@@ -171,7 +171,7 @@ describe("Consumer Routes", () => {
         createdAt: new Date().toISOString(),
       };
 
-      vi.mocked(db.returning).mockResolvedValueOnce([mockKey] as any);
+      vi.mocked((db as any).returning).mockResolvedValueOnce([mockKey] as any);
 
       const res = await request(app)
         .post("/v1/consumer/keys")
@@ -225,7 +225,7 @@ describe("Consumer Routes", () => {
 
   describe("DELETE /v1/consumer/keys/:keyId", () => {
     it("should revoke an API key", async () => {
-      vi.mocked(db.returning).mockResolvedValueOnce([{ id: "key-1", isActive: false }] as any);
+      vi.mocked((db as any).returning).mockResolvedValueOnce([{ id: "key-1", isActive: false }] as any);
 
       const res = await request(app)
         .delete("/v1/consumer/keys/key-1")
@@ -235,7 +235,7 @@ describe("Consumer Routes", () => {
     });
 
     it("should return 404 for non-existent key", async () => {
-      vi.mocked(db.returning).mockResolvedValueOnce([] as any);
+      vi.mocked((db as any).returning).mockResolvedValueOnce([] as any);
 
       const res = await request(app)
         .delete("/v1/consumer/keys/nonexistent")
@@ -291,14 +291,14 @@ describe("Consumer Routes", () => {
       const validTxHash = "0x" + "a".repeat(64);
 
       // Mock: txHash uniqueness check (no existing usage)
-      vi.mocked(db.limit).mockResolvedValueOnce([] as any);
+      vi.mocked((db as any).limit).mockResolvedValueOnce([] as any);
 
       vi.mocked(db.query.consumers.findFirst).mockResolvedValueOnce({
         id: "consumer-1",
         creditBalance: "50.000000",
       } as any);
 
-      vi.mocked(db.returning).mockResolvedValueOnce([{
+      vi.mocked((db as any).returning).mockResolvedValueOnce([{
         creditBalance: "60.000000",
       }] as any);
 

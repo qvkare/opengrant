@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, desc, sql, gte, inArray, ne } from "drizzle-orm";
+import { eq, and, desc, sql, gte, inArray, ne, isNotNull } from "drizzle-orm";
 import { authMiddleware, requireType, AuthRequest } from "../../middleware/auth.middleware.js";
 import { createRateLimitMiddleware } from "../../middleware/rateLimit.middleware.js";
 import { db } from "../../db/index.js";
@@ -821,11 +821,11 @@ router.post("/withdraw", async (req: AuthRequest, res: Response) => {
     const [earnings] = await db
       .select({ net: sql<string>`COALESCE(SUM(amount * (1 - platform_fee_rate)), 0)::text` })
       .from(payments)
-      .where(and(eq(payments.publisherId, publisher.id), eq(payments.status, "settled")));
+      .where(and(eq(payments.publisherId, publisher.id), isNotNull(payments.settledAt)));
     const [withdrawn] = await db
       .select({ total: sql<string>`COALESCE(SUM(amount), 0)::text` })
       .from(withdrawals)
-      .where(and(eq(withdrawals.publisherId, publisher.id), ne(withdrawals.status, "rejected")));
+      .where(and(eq(withdrawals.publisherId, publisher.id), ne(withdrawals.status, "failed")));
 
     const availableBalance = BigInt(earnings?.net || "0") - BigInt(withdrawn?.total || "0");
     if (amountBigInt > availableBalance) {

@@ -278,6 +278,8 @@ export function createPlatformWallet() {
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [to, amount],
+        chain: getViemChain(),
+        account,
       });
 
       return hash;

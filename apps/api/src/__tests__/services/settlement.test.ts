@@ -122,17 +122,25 @@ import {
 
 // Get mocked functions to control them in tests
 import {
-  createPlatformWallet as mockCreatePlatformWallet,
-  waitForTransaction as mockWaitForTransaction,
-  parseUSDC as mockParseUSDC,
-  formatUSDC as mockFormatUSDC,
+  createPlatformWallet,
+  waitForTransaction,
+  parseUSDC,
+  formatUSDC,
 } from "../../services/blockchain.service.js";
 
 import {
-  recordPayment as mockRecordPayment,
-  calculatePlatformFee as mockCalculatePlatformFee,
-  calculateNetAmount as mockCalculateNetAmount,
+  recordPayment,
+  calculatePlatformFee,
+  calculateNetAmount,
 } from "../../services/payment.service.js";
+
+const mockCreatePlatformWallet = vi.mocked(createPlatformWallet);
+const mockWaitForTransaction = vi.mocked(waitForTransaction);
+const mockParseUSDC = vi.mocked(parseUSDC);
+const mockFormatUSDC = vi.mocked(formatUSDC);
+const mockRecordPayment = vi.mocked(recordPayment);
+const mockCalculatePlatformFee = vi.mocked(calculatePlatformFee);
+const mockCalculateNetAmount = vi.mocked(calculateNetAmount);
 
 const mockTransferUSDC = vi.fn();
 
@@ -301,9 +309,9 @@ describe("Settlement Service", () => {
       const mockWallet = {
         transferUSDC: mockTransferUSDC,
       };
-      mockCreatePlatformWallet.mockReturnValue(mockWallet);
+      mockCreatePlatformWallet.mockReturnValue(mockWallet as any);
       mockTransferUSDC.mockResolvedValue("0x1234567890abcdef");
-      mockWaitForTransaction.mockResolvedValue(undefined);
+      mockWaitForTransaction.mockResolvedValue(undefined as any);
       mockRecordPayment.mockResolvedValue("payment-789");
 
       const result = await settleApiPayments("api-1", { executeOnChain: true });
@@ -340,7 +348,7 @@ describe("Settlement Service", () => {
       const mockWallet = {
         transferUSDC: mockTransferUSDC,
       };
-      mockCreatePlatformWallet.mockReturnValue(mockWallet);
+      mockCreatePlatformWallet.mockReturnValue(mockWallet as any);
       mockTransferUSDC.mockRejectedValue(new Error("Insufficient gas"));
 
       const result = await settleApiPayments("api-1", { executeOnChain: true });
@@ -494,9 +502,9 @@ describe("Settlement Service", () => {
       const mockWallet = {
         transferUSDC: mockTransferUSDC,
       };
-      mockCreatePlatformWallet.mockReturnValue(mockWallet);
+      mockCreatePlatformWallet.mockReturnValue(mockWallet as any);
       mockTransferUSDC.mockResolvedValue("0xabcdef123456");
-      mockWaitForTransaction.mockResolvedValue(undefined);
+      mockWaitForTransaction.mockResolvedValue(undefined as any);
       mockParseUSDC.mockReturnValue(BigInt(5000000));
 
       const result = await processWithdrawal("withdrawal-1");
@@ -550,7 +558,7 @@ describe("Settlement Service", () => {
       const mockWallet = {
         transferUSDC: mockTransferUSDC,
       };
-      mockCreatePlatformWallet.mockReturnValue(mockWallet);
+      mockCreatePlatformWallet.mockReturnValue(mockWallet as any);
       mockTransferUSDC.mockRejectedValue(new Error("Insufficient balance"));
       mockParseUSDC.mockReturnValue(BigInt(5000000));
 
@@ -616,9 +624,9 @@ describe("Settlement Service", () => {
       const mockWallet = {
         transferUSDC: mockTransferUSDC,
       };
-      mockCreatePlatformWallet.mockReturnValue(mockWallet);
+      mockCreatePlatformWallet.mockReturnValue(mockWallet as any);
       mockTransferUSDC.mockResolvedValue("0xtxhash123");
-      mockWaitForTransaction.mockResolvedValue(undefined);
+      mockWaitForTransaction.mockResolvedValue(undefined as any);
       mockRecordPayment.mockResolvedValueOnce("payment-1");
 
       const result = await runPeriodicSettlement({ executeOnChain: true });

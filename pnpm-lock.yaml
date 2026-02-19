@@ -97,8 +97,8 @@ importers:
   apps/cli:
     dependencies:
       '@opengrant/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
+        specifier: ^0.1.0
+        version: 0.1.0(viem@2.45.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -1664,6 +1664,12 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@opengrant/sdk@0.1.0':
+    resolution: {integrity: sha512-omrbeBM+HzVBs9dFm0FQQIZdJQT+vDZFgHcL8FfmU0P0UMtdc3XpfMSCUi6kki5d2sxjSHC13vOCLh/5OSQTyg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      viem: ^2.0.0
 
   '@paralleldrive/cuid2@2.3.1':
     resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
@@ -9257,6 +9263,10 @@ snapshots:
       fastq: 1.20.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@opengrant/sdk@0.1.0(viem@2.45.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))':
+    dependencies:
+      viem: 2.45.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
 
   '@paralleldrive/cuid2@2.3.1':
     dependencies:
