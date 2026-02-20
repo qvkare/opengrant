@@ -11,7 +11,7 @@ function Logo() {
       height="28"
       viewBox="0 0 28 28"
       fill="none"
-      className="text-black"
+      className="text-white"
       aria-hidden="true"
     >
       <rect x="1" y="1" width="26" height="26" rx="4" stroke="currentColor" strokeWidth="1.5" />
@@ -31,57 +31,66 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 0);
-    window.addEventListener("scroll", handleScroll);
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
     <nav
-      className={`fixed w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100 transition-all duration-300 ${
-        scrolled ? "shadow-sm" : ""
+      className={`fixed w-full z-50 transition-[background-color,backdrop-filter,box-shadow] duration-500 border-b ${
+        scrolled
+          ? "bg-white/[0.06] backdrop-blur-2xl saturate-150 border-white/[0.12] shadow-[0_4px_40px_rgba(0,0,0,0.4)]"
+          : "bg-transparent border-transparent"
       }`}
     >
+      {/* Subtle inner highlight line at top when scrolled */}
+      <div
+        className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent transition-opacity duration-500 ${
+          scrolled ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-3">
             <Logo />
-            <span className="font-semibold text-xl tracking-tight">
+            <span className="font-semibold text-xl tracking-tight text-white">
               OpenGrant
             </span>
           </Link>
         </div>
 
-        <div className="hidden md:flex items-center gap-10 text-sm font-medium text-gray-500">
+        <div className="hidden md:flex items-center gap-10 text-sm font-medium text-white/60">
           <a
             href="#how-it-works"
-            className="hover:text-black transition-colors"
+            className="hover:text-white transition-colors duration-200"
           >
             How it works
           </a>
-          <a href="#features" className="hover:text-black transition-colors">
+          <a href="#features" className="hover:text-white transition-colors duration-200">
             Features
           </a>
           <a
             href="https://docs.opengrant.dev"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-black transition-colors"
+            className="hover:text-white transition-colors duration-200"
           >
             Documentation
           </a>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <a
             href={`${APP_URL}/auth`}
-            className="text-sm font-medium text-gray-600 hover:text-black hidden sm:block transition-colors"
+            className="text-sm font-medium text-white/60 hover:text-white hidden sm:block transition-colors duration-200"
           >
             Log in
           </a>
           <a
-            href={`${APP_URL}/auth`}
-            className="bg-black text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors shadow-sm"
+            href={`${APP_URL}/fund`}
+            className="bg-white text-black px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-white/90 transition-all duration-200 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
           >
             Start Earning
           </a>

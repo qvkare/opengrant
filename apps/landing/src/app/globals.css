@@ -11,8 +11,8 @@ html {
 
 body {
   font-family: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
-  background-color: #ffffff;
-  color: #111111;
+  background-color: #000000;
+  color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

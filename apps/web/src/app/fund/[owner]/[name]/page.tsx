@@ -138,7 +138,6 @@ export default function ProjectDetailPage() {
       return;
     }
 
-    // Ensure we have an API token
     let apiToken = token;
     if (!apiToken) {
       apiToken = await authenticate();
@@ -159,7 +158,6 @@ export default function ProjectDetailPage() {
       const repoHash = repo.repoHash as `0x${string}`;
       const txHash = await escrow.donate(repoHash, donateAmount, redistributeOnTimeout);
 
-      // Record the donation in the backend (best-effort; on-chain tx already succeeded)
       try {
         await recordDonation(apiToken, {
           repoId: repo.id,
@@ -171,19 +169,18 @@ export default function ProjectDetailPage() {
         });
       } catch {
         // On-chain donation succeeded but backend recording failed.
-        // The on-chain state is authoritative; data will sync eventually.
       }
 
-      // Refresh data after successful donation
       await refreshData();
-    } catch (err: any) {
-      escrow.setError(err.shortMessage || err.message || "Transaction failed");
+    } catch (err: unknown) {
+      const e = err as { shortMessage?: string; message?: string };
+      escrow.setError(e.shortMessage || e.message || "Transaction failed");
     }
   }
 
   if (loading) {
     return (
-      <div className="container py-8 flex justify-center">
+      <div className="max-w-6xl mx-auto px-6 py-8 flex justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black" />
       </div>
     );
@@ -191,7 +188,7 @@ export default function ProjectDetailPage() {
 
   if (!repo) {
     return (
-      <div className="container py-8 text-center">
+      <div className="max-w-6xl mx-auto px-6 py-8 text-center">
         <h1 className="text-2xl font-bold mb-2">Project Not Found</h1>
         <p className="text-muted-foreground mb-4">
           {owner}/{name} is not in our database yet.
@@ -208,14 +205,13 @@ export default function ProjectDetailPage() {
   const isBusy = escrow.txStatus !== "idle" && escrow.txStatus !== "success" && escrow.txStatus !== "error";
 
   return (
-    <div className="container py-8 max-w-4xl">
-      {/* Testnet Banner */}
+    <div className="max-w-6xl mx-auto px-6 py-8">
+      {/* Banners */}
       <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center text-sm">
         <span className="font-medium text-yellow-700">Base Sepolia Testnet</span>
         <span className="text-yellow-600"> — Uses test USDC. No real funds involved.</span>
       </div>
 
-      {/* Wrong Chain Warning */}
       {isConnected && escrow.isWrongChain && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-sm">
           <span className="text-red-600">
@@ -234,12 +230,12 @@ export default function ProjectDetailPage() {
       {/* Project Header */}
       <div className="flex items-start gap-4 mb-8">
         {repo.avatarUrl && (
-          <img src={repo.avatarUrl} alt={repo.owner} className="w-16 h-16 rounded-full" />
+          <img src={repo.avatarUrl} alt={repo.owner} className="w-14 h-14 rounded-full flex-shrink-0" />
         )}
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">{repo.fullName}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold truncate">{repo.fullName}</h1>
           {repo.description && (
-            <p className="text-lg text-muted-foreground mt-1">{repo.description}</p>
+            <p className="text-muted-foreground mt-1 line-clamp-2">{repo.description}</p>
           )}
           <div className="flex flex-wrap items-center gap-3 mt-3">
             {repo.language && <Badge variant="secondary">{repo.language}</Badge>}
@@ -253,6 +249,16 @@ export default function ProjectDetailPage() {
             <span className="text-sm text-muted-foreground">
               {formatNumber(repo.forks)} forks
             </span>
+            {repo.homepageUrl && (
+              <a
+                href={repo.homepageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline truncate max-w-[180px]"
+              >
+                {repo.homepageUrl}
+              </a>
+            )}
           </div>
           {repo.topics && repo.topics.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
@@ -266,205 +272,223 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Funding Stats */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Funded</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-500">
-              {formatUSDCAmount(repo.totalFunded)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Donors</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{repo.donorCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Claim Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge
-              variant={repo.claimStatus === "claimed" ? "default" : "secondary"}
-              className={repo.claimStatus === "claimed" ? "bg-green-600" : ""}
-            >
-              {repo.claimStatus === "claimed" ? "Claimed" : "Unclaimed"}
-            </Badge>
-            {repo.claimedBy && (
-              <p className="text-xs text-muted-foreground mt-1">
-                by {formatAddress(repo.claimedBy)}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Donate Form */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Fund This Project</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {repo.claimStatus === "claimed" && repo.claimedBy && (
-            <div className="p-3 bg-green-500/10 rounded-xl text-sm">
-              Funds go directly to {formatAddress(repo.claimedBy)}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount (USDC)</Label>
-            <div className="flex gap-2">
-              {[5, 10, 25, 50, 100].map((amt) => (
-                <Button
-                  key={amt}
-                  variant={donateAmount === amt.toString() ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDonateAmount(amt.toString())}
-                  disabled={isBusy}
+      {/* Two-column layout */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left column: stats + linked APIs + donors */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Total Funded
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatUSDCAmount(repo.totalFunded)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Donors
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{repo.donorCount}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Badge
+                  variant={repo.claimStatus === "claimed" ? "default" : "secondary"}
+                  className={repo.claimStatus === "claimed" ? "bg-green-600" : ""}
                 >
-                  ${amt}
-                </Button>
-              ))}
-            </div>
-            <Input
-              id="amount"
-              type="number"
-              min="1"
-              step="0.01"
-              value={donateAmount}
-              onChange={(e) => setDonateAmount(e.target.value)}
-              placeholder="Custom amount"
-              disabled={isBusy}
-            />
+                  {repo.claimStatus === "claimed" ? "Claimed" : "Unclaimed"}
+                </Badge>
+                {repo.claimedBy && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    by {formatAddress(repo.claimedBy)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="redistribute"
-              checked={redistributeOnTimeout}
-              onChange={(e) => setRedistributeOnTimeout(e.target.checked)}
-              className="rounded"
-              disabled={isBusy}
-            />
-            <Label htmlFor="redistribute" className="text-sm font-normal">
-              If unclaimed after 1 year, allow redistribution to other projects
-            </Label>
-          </div>
-
-          <TxStatusBadge status={escrow.txStatus} />
-
-          {escrow.error && (
-            <div className="p-3 bg-red-500/10 rounded-xl text-sm text-red-600 text-center">
-              {escrow.error}
-            </div>
-          )}
-
-          {escrow.txHash && escrow.txStatus === "success" && (
-            <div className="p-3 bg-green-500/10 rounded-xl text-sm text-center">
-              <a
-                href={`https://sepolia.basescan.org/tx/${escrow.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-green-600 underline"
-              >
-                View transaction on BaseScan
-              </a>
-            </div>
-          )}
-
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={!donateAmount || !isValidAmount || isBusy || escrow.isWrongChain}
-            onClick={handleDonate}
-          >
-            {isBusy ? (
-              <>
-                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                Processing...
-              </>
-            ) : escrow.isWrongChain ? (
-              `Switch to ${escrow.chainName}`
-            ) : !isConnected ? (
-              "Connect Wallet to Donate"
-            ) : (
-              `Donate $${donateAmount} USDC`
-            )}
-          </Button>
-          {donateAmount && parseFloat(donateAmount) < 1 && (
-            <p className="text-xs text-red-500 text-center">Minimum donation is 1 USDC</p>
-          )}
-
-          <p className="text-xs text-muted-foreground text-center">
-            Funds are held in a trustless on-chain escrow. 0% platform fee.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Linked APIs */}
-      {repo.linkedApis && repo.linkedApis.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>OpenGrant APIs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-3">
-              This repo has APIs monetized through OpenGrant
-            </p>
-            <div className="space-y-2">
-              {repo.linkedApis.map((api) => (
-                <Link
-                  key={api.id}
-                  href={`/${api.slug}`}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
-                >
-                  <div>
-                    <p className="font-medium">{api.name}</p>
-                    <p className="text-xs text-muted-foreground">/{api.slug}</p>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {formatNumber(api.totalCalls)} calls
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent Donors */}
-      {donors.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Recent Donors</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {donors.map((donor) => (
-                <div key={donor.txHash} className="flex items-center justify-between py-2 border-b last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium">{formatAddress(donor.donorWallet)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(donor.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span className="font-medium text-green-500">
-                    {formatUSDCAmount(donor.amount)}
-                  </span>
+          {/* Linked APIs */}
+          {repo.linkedApis && repo.linkedApis.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>OpenGrant APIs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3">
+                  APIs monetized through OpenGrant from this repo
+                </p>
+                <div className="space-y-2">
+                  {repo.linkedApis.map((api) => (
+                    <Link
+                      key={api.id}
+                      href={`/${api.slug}`}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">{api.name}</p>
+                        <p className="text-xs text-muted-foreground">/{api.slug}</p>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {formatNumber(api.totalCalls)} calls
+                      </span>
+                    </Link>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Donors */}
+          {donors.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Donors</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {donors.map((donor) => (
+                    <div
+                      key={donor.txHash}
+                      className="flex items-center justify-between py-2 border-b last:border-b-0"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{formatAddress(donor.donorWallet)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(donor.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className="font-medium text-green-600">
+                        {formatUSDCAmount(donor.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right column: donate form (sticky) */}
+        <div className="lg:sticky lg:top-24 h-fit">
+          <Card>
+            <CardHeader>
+              <CardTitle>Fund This Project</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {repo.claimStatus === "claimed" && repo.claimedBy && (
+                <div className="p-3 bg-green-500/10 rounded-xl text-sm">
+                  Funds go directly to {formatAddress(repo.claimedBy)}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount (USDC)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[5, 10, 25, 50, 100].map((amt) => (
+                    <Button
+                      key={amt}
+                      variant={donateAmount === amt.toString() ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setDonateAmount(amt.toString())}
+                      disabled={isBusy}
+                    >
+                      ${amt}
+                    </Button>
+                  ))}
+                </div>
+                <Input
+                  id="amount"
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={donateAmount}
+                  onChange={(e) => setDonateAmount(e.target.value)}
+                  placeholder="Custom amount"
+                  disabled={isBusy}
+                />
+              </div>
+
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="redistribute"
+                  checked={redistributeOnTimeout}
+                  onChange={(e) => setRedistributeOnTimeout(e.target.checked)}
+                  className="rounded mt-0.5"
+                  disabled={isBusy}
+                />
+                <Label htmlFor="redistribute" className="text-sm font-normal leading-snug">
+                  If unclaimed after 1 year, allow redistribution to other projects
+                </Label>
+              </div>
+
+              <TxStatusBadge status={escrow.txStatus} />
+
+              {escrow.error && (
+                <div className="p-3 bg-red-500/10 rounded-xl text-sm text-red-600 text-center">
+                  {escrow.error}
+                </div>
+              )}
+
+              {escrow.txHash && escrow.txStatus === "success" && (
+                <div className="p-3 bg-green-500/10 rounded-xl text-sm text-center">
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${escrow.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-600 underline"
+                  >
+                    View on BaseScan
+                  </a>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={!donateAmount || !isValidAmount || isBusy || escrow.isWrongChain}
+                onClick={handleDonate}
+              >
+                {isBusy ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Processing...
+                  </>
+                ) : escrow.isWrongChain ? (
+                  `Switch to ${escrow.chainName}`
+                ) : !isConnected ? (
+                  "Connect Wallet to Donate"
+                ) : (
+                  `Donate $${donateAmount} USDC`
+                )}
+              </Button>
+
+              {donateAmount && parseFloat(donateAmount) < 1 && (
+                <p className="text-xs text-red-500 text-center">Minimum donation is 1 USDC</p>
+              )}
+
+              <p className="text-xs text-muted-foreground text-center">
+                Trustless on-chain escrow. 0% platform fee.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
