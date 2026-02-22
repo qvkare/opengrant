@@ -116,6 +116,22 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     rpcUrl: "https://rpc-amoy.polygon.technology",
     testnet: true,
   },
+  480: {
+    chainId: 480,
+    name: "World Chain",
+    network: "eip155:480",
+    usdc: "0x79A02482A880bCe3F13E09da970dC34dB4cD24D1",
+    rpcUrl: "https://worldchain-mainnet.g.alchemy.com/public",
+    testnet: false,
+  },
+  4801: {
+    chainId: 4801,
+    name: "World Chain Sepolia",
+    network: "eip155:4801",
+    usdc: "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88",
+    rpcUrl: "https://worldchain-sepolia.g.alchemy.com/public",
+    testnet: true,
+  },
 } as const;
 
 /**
@@ -124,6 +140,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
  */
 export const ESCROW_ADDRESSES: Partial<Record<number, `0x${string}`>> = {
   84532: "0x6c21371a0758c525f8632ee6466d0b7c35538953", // Base Sepolia
+  4801: "0x2e5c75c560D4877899a49206c629d04b58faD51A", // World Chain Sepolia
 } as const;
 
 /**

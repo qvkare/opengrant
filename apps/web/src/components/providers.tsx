@@ -1,104 +1,68 @@
 "use client";
 
-// This module is loaded via dynamic({ ssr: false }) in client-shell.tsx
-// so we are guaranteed to be in the browser — safe to import ConnectKit synchronously.
-
 import React, { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  ConnectKitProvider,
-  createConfig,
-  useAccount,
-  useModal,
-  useDisconnect,
-  useWallets,
-} from "@particle-network/connectkit";
-import { authWalletConnectors } from "@particle-network/connectkit/auth";
-import { evmWalletConnectors } from "@particle-network/connectkit/evm";
-import { wallet, EntryPosition } from "@particle-network/connectkit/wallet";
-import { base, baseSepolia } from "@particle-network/connectkit/chains";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
+import { worldchain, worldchainSepolia, base, baseSepolia } from "viem/chains";
 import { WalletContext } from "@/contexts/wallet-context";
 
-const PARTICLE_PROJECT_ID = process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID;
-const PARTICLE_CLIENT_KEY = process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY;
-const PARTICLE_APP_ID = process.env.NEXT_PUBLIC_PARTICLE_APP_ID;
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
-const isParticleConfigured = !!(
-  PARTICLE_PROJECT_ID &&
-  PARTICLE_CLIENT_KEY &&
-  PARTICLE_APP_ID
-);
-
-// Create config once at module level (only when configured)
-const particleConfig = isParticleConfigured
-  ? createConfig({
-      projectId: PARTICLE_PROJECT_ID!,
-      clientKey: PARTICLE_CLIENT_KEY!,
-      appId: PARTICLE_APP_ID!,
-      chains: [baseSepolia, base],
-      walletConnectors: [
-        authWalletConnectors({
-          authTypes: ["email", "google", "apple", "twitter", "github"],
-          fiatCoin: "USD",
-          promptSettingConfig: {
-            promptMasterPasswordSettingWhenLogin: 1,
-            promptPaymentPasswordSettingWhenSign: 1,
-          },
-        }),
-        evmWalletConnectors({
-          metadata: {
-            name: "OpenGrant",
-            icon: "",
-            description: "Crypto-native API marketplace",
-            url: typeof window !== "undefined" ? window.location.origin : "",
-          },
-          multiInjectedProviderDiscovery: true,
-        }),
-      ],
-      plugins: [
-        wallet({
-          entryPosition: EntryPosition.BR,
-          visible: true,
-        }),
-      ],
-      appearance: {
-        mode: "dark",
-        theme: {
-          "--pcm-accent-color": "#3B82F6",
-        },
-      },
-    })
-  : null;
+const isPrivyConfigured = !!PRIVY_APP_ID;
 
 /**
- * Bridges ConnectKit hooks into WalletContext so that page components
- * never need to import directly from @particle-network/connectkit.
- * This component MUST be rendered inside ConnectKitProvider.
+ * Bridges Privy hooks into WalletContext so that page components
+ * never need to import directly from @privy-io/react-auth.
  */
 function WalletBridge({ children }: { children: ReactNode }) {
-  const { address, isConnected, status, chainId } = useAccount();
-  const { setOpen } = useModal();
-  const { disconnect } = useDisconnect();
-  const wallets = useWallets();
+  const { ready, authenticated, login, logout: privyLogout } = usePrivy();
+  const { wallets } = useWallets();
+
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+  const activeWallet = embeddedWallet || wallets[0];
 
   return (
     <WalletContext.Provider
-      value={{ address, isConnected, status, chainId, setOpen, disconnect, wallets }}
+      value={{
+        address: activeWallet?.address,
+        isConnected: authenticated && wallets.length > 0,
+        status: !ready ? "connecting" : authenticated ? "connected" : "disconnected",
+        chainId: activeWallet?.chainId ? parseInt(activeWallet.chainId.split(":")[1]) : undefined,
+        setOpen: () => login(),
+        disconnect: () => privyLogout(),
+        wallets,
+      }}
     >
       {children}
     </WalletContext.Provider>
   );
 }
 
-function ParticleProvider({ children }: { children: ReactNode }) {
-  if (!isParticleConfigured || !particleConfig) {
+function PrivyWrapper({ children }: { children: ReactNode }) {
+  if (!isPrivyConfigured) {
     return <>{children}</>;
   }
 
   return (
-    <ConnectKitProvider config={particleConfig}>
+    <PrivyProvider
+      appId={PRIVY_APP_ID!}
+      config={{
+        appearance: {
+          theme: "light",
+          accentColor: "#3B82F6",
+        },
+        loginMethods: ["email", "wallet", "google", "apple", "twitter", "github"],
+        embeddedWallets: {
+          ethereum: {
+            createOnLogin: "users-without-wallets",
+          },
+        },
+        defaultChain: worldchainSepolia,
+        supportedChains: [worldchainSepolia, worldchain, baseSepolia, base],
+      }}
+    >
       <WalletBridge>{children}</WalletBridge>
-    </ConnectKitProvider>
+    </PrivyProvider>
   );
 }
 
@@ -111,8 +75,8 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ParticleProvider>
+    <PrivyWrapper>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </ParticleProvider>
+    </PrivyWrapper>
   );
 }

@@ -18,6 +18,8 @@ import {
   polygon,
   polygonAmoy,
   mainnet,
+  worldchain,
+  worldchainSepolia,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "../config/index.js";
@@ -33,6 +35,8 @@ const CHAIN_MAP: Record<number, any> = {
   421614: arbitrumSepolia,
   59141: lineaSepolia,
   80002: polygonAmoy,
+  480: worldchain,
+  4801: worldchainSepolia,
 };
 
 function getViemChain() {

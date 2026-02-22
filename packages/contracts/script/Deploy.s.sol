@@ -22,6 +22,8 @@ import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy
  *   - Polygon PoS (137)
  *   - Polygon Amoy (80002)
  *   - Ethereum Mainnet (1)
+ *   - World Chain (480)
+ *   - World Chain Sepolia (4801)
  *
  * Usage:
  * 1. Set environment variables:
@@ -45,11 +47,14 @@ contract DeployScript is Script {
     address constant USDC_LINEA          = 0xFEce4462D57bD51A6A552365A011b95f0E16d9B7;
     address constant USDC_POLYGON        = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
 
+    address constant USDC_WORLD          = 0x79A02482A880bCE3F13e09Da970dC34db4CD24d1;
+
     // Testnets
     address constant USDC_BASE_SEPOLIA   = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
     address constant USDC_ARB_SEPOLIA    = 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d;
     address constant USDC_LINEA_SEPOLIA  = 0xb33a204b04c0BBE78EB4252C6264C5C94e2FB0dB;
     address constant USDC_POLYGON_AMOY   = 0x41E94EB71EF8C9770BAD3bBd3e492065b2B8ce75;
+    address constant USDC_WORLD_SEPOLIA  = 0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88;
 
     // Platform fee: 2.5% (250 basis points)
     uint256 constant PLATFORM_FEE_BPS = 250;
@@ -69,6 +74,8 @@ contract DeployScript is Script {
         if (chainId == 421614) return (USDC_ARB_SEPOLIA,   "Arbitrum Sepolia");
         if (chainId == 59141)  return (USDC_LINEA_SEPOLIA, "Linea Sepolia");
         if (chainId == 80002)  return (USDC_POLYGON_AMOY,  "Polygon Amoy");
+        if (chainId == 480)    return (USDC_WORLD,          "World Chain");
+        if (chainId == 4801)   return (USDC_WORLD_SEPOLIA,  "World Chain Sepolia");
 
         revert("Unsupported chain - add USDC address for this chain ID");
     }
@@ -208,6 +215,8 @@ contract DeployEscrowScript is Script {
         if (chainId == 421614) return (0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d, "Arbitrum Sepolia");
         if (chainId == 59141)  return (0xb33a204b04c0BBE78EB4252C6264C5C94e2FB0dB, "Linea Sepolia");
         if (chainId == 80002)  return (0x41E94EB71EF8C9770BAD3bBd3e492065b2B8ce75, "Polygon Amoy");
+        if (chainId == 480)    return (0x79A02482A880bCE3F13e09Da970dC34db4CD24d1, "World Chain");
+        if (chainId == 4801)   return (0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88, "World Chain Sepolia");
         revert("Unsupported chain");
     }
 

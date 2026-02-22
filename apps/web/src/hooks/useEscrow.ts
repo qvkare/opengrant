@@ -6,16 +6,18 @@ import {
   http,
   parseUnits,
   formatUnits,
+  createWalletClient,
+  custom,
   type Hash,
 } from "viem";
-import { baseSepolia } from "viem/chains";
+import { worldchainSepolia } from "viem/chains";
 import { useWallet } from "@/contexts/wallet-context";
 import { contracts } from "@/lib/contracts";
 import { ESCROW_ABI, ERC20_ABI } from "@/lib/escrow-abi";
 
-// Use baseSepolia for now; switch to base for mainnet
-const chain = baseSepolia;
-const chainContracts = contracts.baseSepolia;
+// Use worldchainSepolia for now; switch to worldchain for mainnet
+const chain = worldchainSepolia;
+const chainContracts = contracts.worldchainSepolia;
 
 const publicClient = createPublicClient({
   chain,
@@ -31,24 +33,18 @@ export function useEscrow() {
   const [error, setError] = useState<string | null>(null);
 
   // Only true when wallet IS connected but on the wrong chain.
-  // undefined chainId (disconnected) is NOT "wrong chain" — it's "not connected".
   const isWrongChain = walletChainId !== undefined && walletChainId !== chain.id;
 
-  function assertCorrectChain() {
-    if (walletChainId === undefined) {
-      throw new Error("Wallet not connected or chain not detected yet.");
-    }
-    if (walletChainId !== chain.id) {
-      throw new Error(
-        `Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`
-      );
-    }
-  }
-
-  const getWalletClient = useCallback(() => {
+  const getWalletClient = useCallback(async () => {
     if (!wallets[0]) throw new Error("No wallet connected");
-    return wallets[0].getWalletClient();
-  }, [wallets]);
+    // Privy: get EIP-1193 provider and create viem wallet client
+    const provider = await wallets[0].getEthereumProvider();
+    return createWalletClient({
+      account: address as `0x${string}`,
+      chain,
+      transport: custom(provider),
+    });
+  }, [wallets, address]);
 
   const escrowAddress = chainContracts.escrow;
   const usdcAddress = chainContracts.usdc as `0x${string}`;
@@ -67,7 +63,7 @@ export function useEscrow() {
       if (allowance >= amount) return;
 
       setTxStatus("approving");
-      const walletClient = getWalletClient();
+      const walletClient = await getWalletClient();
       const approveHash = await walletClient.writeContract({
         address: usdcAddress,
         abi: ERC20_ABI,
@@ -82,6 +78,15 @@ export function useEscrow() {
     [address, escrowAddress, usdcAddress, getWalletClient]
   );
 
+  const switchToCorrectChain = useCallback(async () => {
+    if (!wallets[0]) return;
+    try {
+      await wallets[0].switchChain(chain.id);
+    } catch {
+      throw new Error(`Please switch to ${chain.name} (chain ID ${chain.id})`);
+    }
+  }, [wallets]);
+
   const donate = useCallback(
     async (
       repoHash: `0x${string}`,
@@ -89,9 +94,10 @@ export function useEscrow() {
       redistributeOnTimeout: boolean
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
-      // assertCorrectChain uses walletChainId from the current render closure
       if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
-      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
+      if (walletChainId !== chain.id) {
+        await switchToCorrectChain();
+      }
 
       setError(null);
       setTxHash(null);
@@ -102,7 +108,7 @@ export function useEscrow() {
         await ensureAllowance(amount);
 
         setTxStatus("sending");
-        const walletClient = getWalletClient();
+        const walletClient = await getWalletClient();
         const hash = await walletClient.writeContract({
           address: escrowAddress,
           abi: ESCROW_ABI,
@@ -123,7 +129,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId]
+    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId, switchToCorrectChain]
   );
 
   const batchDonate = useCallback(
@@ -134,7 +140,9 @@ export function useEscrow() {
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
       if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
-      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
+      if (walletChainId !== chain.id) {
+        await switchToCorrectChain();
+      }
 
       setError(null);
       setTxHash(null);
@@ -146,7 +154,7 @@ export function useEscrow() {
         await ensureAllowance(totalAmount);
 
         setTxStatus("sending");
-        const walletClient = getWalletClient();
+        const walletClient = await getWalletClient();
         const hash = await walletClient.writeContract({
           address: escrowAddress,
           abi: ESCROW_ABI,
@@ -167,7 +175,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId]
+    [escrowAddress, address, ensureAllowance, getWalletClient, walletChainId, switchToCorrectChain]
   );
 
   const claim = useCallback(
@@ -179,7 +187,9 @@ export function useEscrow() {
     ): Promise<Hash> => {
       if (!escrowAddress) throw new Error("Escrow address not configured");
       if (walletChainId === undefined) throw new Error("Wallet not connected or chain not detected yet.");
-      if (walletChainId !== chain.id) throw new Error(`Wrong network: please switch to ${chain.name} (chain ID ${chain.id})`);
+      if (walletChainId !== chain.id) {
+        await switchToCorrectChain();
+      }
 
       setError(null);
       setTxHash(null);
@@ -187,7 +197,7 @@ export function useEscrow() {
       try {
         setTxStatus("sending");
 
-        const walletClient = getWalletClient();
+        const walletClient = await getWalletClient();
         const hash = await walletClient.writeContract({
           address: escrowAddress,
           abi: ESCROW_ABI,
@@ -208,7 +218,7 @@ export function useEscrow() {
         throw err;
       }
     },
-    [escrowAddress, address, getWalletClient, walletChainId]
+    [escrowAddress, address, getWalletClient, walletChainId, switchToCorrectChain]
   );
 
   const getRepoInfo = useCallback(

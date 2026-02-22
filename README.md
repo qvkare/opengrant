@@ -4,7 +4,7 @@ Crypto-native API marketplace and open source funding platform using x402 microp
 
 ## Overview
 
-OpenGrant enables open-source projects to monetize their APIs through HTTP-native micropayments **and** receive direct funding through trustless on-chain escrow. Built on multi-chain EVM (Base, Arbitrum, Linea, Polygon) with USDC, it provides instant, low-cost payments with 2-second finality.
+OpenGrant enables open-source projects to monetize their APIs through HTTP-native micropayments **and** receive direct funding through trustless on-chain escrow. Built on multi-chain EVM (World Chain, Base, Arbitrum, Linea, Polygon) with USDC, it provides instant, low-cost payments with 2-second finality.
 
 ### Key Features
 
@@ -12,10 +12,10 @@ OpenGrant enables open-source projects to monetize their APIs through HTTP-nativ
 - **Open Source Funding**: USDC escrow for direct donations and dependency-based stack funding
 - **Stack Fund**: Upload package.json/Cargo.toml/go.mod to fund your entire dependency tree
 - **Trustless Escrow**: On-chain USDC escrow with ECDSA-signed claims, 365-day refund protection
-- **Multi-Chain**: Supports Ethereum, Base, Arbitrum, Linea, Polygon (mainnets + testnets)
+- **Multi-Chain**: Supports World Chain, Ethereum, Base, Arbitrum, Linea, Polygon (mainnets + testnets)
 - **Chainlink CRE**: Decentralized workflow orchestration for payment verification and settlements
 - **USDC Payments**: Stable, predictable pricing for API consumers and donors
-- **Particle Network ConnectKit**: Seamless wallet abstraction with email/social login support
+- **Privy Wallet**: Seamless wallet abstraction with email/social login and embedded wallets
 - **Publisher Vaults**: ERC-4626 + PaymentSplitter for revenue distribution
 
 ## Architecture
@@ -243,12 +243,10 @@ This means a project's fund page (`/fund/owner/name`) can show linked APIs, and 
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
 | `JWT_SECRET` | Secret for JWT token signing (min 32 chars) |
-| `CHAIN_ID` | Blockchain chain ID (8453 for Base) |
+| `CHAIN_ID` | Blockchain chain ID (4801 for World Chain Sepolia) |
 | `RPC_URL` | Ethereum RPC URL |
 | `PLATFORM_WALLET` | Platform fee recipient address |
-| `NEXT_PUBLIC_PARTICLE_PROJECT_ID` | Particle Network project ID |
-| `NEXT_PUBLIC_PARTICLE_CLIENT_KEY` | Particle Network client key |
-| `NEXT_PUBLIC_PARTICLE_APP_ID` | Particle Network app ID |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy application ID |
 | `GITHUB_TOKEN` | GitHub PAT for API reads (optional) |
 | `OPENGRANT_ESCROW_ADDRESS` | Deployed escrow contract address (optional) |
 | `ESCROW_SIGNER_PRIVATE_KEY` | Backend key for claim authorization signing (optional) |
@@ -257,7 +255,7 @@ See `.env.example` for all available options.
 
 ## Smart Contracts
 
-Contracts are built with Foundry and support 9 EVM chains (5 mainnets + 4 testnets):
+Contracts are built with Foundry and support 11 EVM chains (6 mainnets + 5 testnets):
 
 - **OpenGrantRegistry**: UUPS upgradeable registry for APIs and endpoints
 - **OpenGrantPayments**: Payment routing and settlement with fee oracle
@@ -266,16 +264,32 @@ Contracts are built with Foundry and support 9 EVM chains (5 mainnets + 4 testne
 - **OpenGrantFactory**: Factory for deploying publisher vaults
 - **GRANTToken**: Platform governance token (fixed supply)
 - **GRANTStaking**: Staking contract for fee discounts
+- **FeeDiscountOracle**: Tier-based fee discounts based on GRANT staking
+
+### Deployed Contracts (World Chain Sepolia)
+
+| Contract | Address |
+|----------|---------|
+| OpenGrantRegistry (Proxy) | [`0x9E82afb28b87957AFe50464A5717b5B53E395D0D`](https://sepolia.worldscan.org/address/0x9E82afb28b87957AFe50464A5717b5B53E395D0D) |
+| OpenGrantRegistry (Impl) | [`0x74A25B263c47bE53081274dB037a8182BD9eC90e`](https://sepolia.worldscan.org/address/0x74A25B263c47bE53081274dB037a8182BD9eC90e) |
+| OpenGrantPayments | [`0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135`](https://sepolia.worldscan.org/address/0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135) |
+| OpenGrantFactory | [`0x8ec138B556A2c0324146e259d9eBEA38A9575cA0`](https://sepolia.worldscan.org/address/0x8ec138B556A2c0324146e259d9eBEA38A9575cA0) |
+| OpenGrantEscrow | [`0x2e5c75c560D4877899a49206c629d04b58faD51A`](https://sepolia.worldscan.org/address/0x2e5c75c560D4877899a49206c629d04b58faD51A) |
+| GRANTToken | [`0xF388E071bD758261980d585359Ce2BA0024A8D46`](https://sepolia.worldscan.org/address/0xF388E071bD758261980d585359Ce2BA0024A8D46) |
+| GRANTStaking | [`0x4745DE55e4037b87768AB63Be1F479E4361096c1`](https://sepolia.worldscan.org/address/0x4745DE55e4037b87768AB63Be1F479E4361096c1) |
+| FeeDiscountOracle | [`0x00D8612EeE60258453FA7685Aa667c7b0aAAF3a6`](https://sepolia.worldscan.org/address/0x00D8612EeE60258453FA7685Aa667c7b0aAAF3a6) |
 
 ### Supported Chains
 
 | Chain | Chain ID | Type |
 |-------|----------|------|
+| World Chain | 480 | Mainnet |
 | Ethereum | 1 | Mainnet |
 | Base | 8453 | Mainnet |
 | Arbitrum One | 42161 | Mainnet |
 | Linea | 59144 | Mainnet |
 | Polygon PoS | 137 | Mainnet |
+| World Chain Sepolia | 4801 | Testnet |
 | Base Sepolia | 84532 | Testnet |
 | Arbitrum Sepolia | 421614 | Testnet |
 | Linea Sepolia | 59141 | Testnet |

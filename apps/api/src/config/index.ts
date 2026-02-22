@@ -5,7 +5,7 @@ import { z } from "zod";
 dotenvConfig();
 
 // Supported chain IDs for validation
-const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 59144, 137, 84532, 421614, 59141, 80002];
+const SUPPORTED_CHAIN_IDS = [1, 8453, 42161, 59144, 137, 480, 84532, 421614, 59141, 80002, 4801];
 
 // USDC addresses per chain (native Circle-issued, EIP-3009 compatible)
 const CHAIN_USDC_ADDRESSES: Record<number, string> = {
@@ -18,6 +18,8 @@ const CHAIN_USDC_ADDRESSES: Record<number, string> = {
   421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
   59141:  "0xB33a204B04C0BBe78eB4252c6264c5C94e2Fb0dB", // Linea Sepolia
   80002:  "0x41E94Eb71Ef8C9770bAd3BbD3E492065b2B8cE75", // Polygon Amoy
+  480:    "0x79A02482A880bCe3F13E09da970dC34dB4cD24D1", // World Chain
+  4801:   "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88", // World Chain Sepolia
 };
 
 // Default RPC URLs per chain
@@ -31,6 +33,8 @@ const CHAIN_RPC_DEFAULTS: Record<number, string> = {
   421614: "https://sepolia-rollup.arbitrum.io/rpc",
   59141:  "https://rpc.sepolia.linea.build",
   80002:  "https://rpc-amoy.polygon.technology",
+  480:    "https://worldchain-mainnet.g.alchemy.com/public",
+  4801:   "https://worldchain-sepolia.g.alchemy.com/public",
 };
 
 const envSchema = z.object({

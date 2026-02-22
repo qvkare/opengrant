@@ -7,7 +7,7 @@ export interface WalletState {
   isConnected: boolean;
   status: string;
   chainId?: number;
-  setOpen: (open: boolean) => void;
+  setOpen: (open?: boolean) => void;
   disconnect: () => void;
   wallets: any[];
 }

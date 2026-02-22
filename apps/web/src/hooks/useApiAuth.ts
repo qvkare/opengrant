@@ -31,10 +31,12 @@ export function useApiAuth(type: "consumer" | "publisher" = "consumer") {
 
     try {
       const message = `OpenGrant Login\n\nWallet: ${address}\nTimestamp: ${Date.now()}`;
-      const walletClient = primaryWallet.getWalletClient();
-      const signature = await walletClient.signMessage({
-        account: address as `0x${string}`,
-        message,
+
+      // Privy wallet: get EIP-1193 provider and use personal_sign
+      const provider = await primaryWallet.getEthereumProvider();
+      const signature = await provider.request({
+        method: "personal_sign",
+        params: [message, address],
       });
 
       const res = await fetch(`${API_BASE}/v1/auth/login`, {

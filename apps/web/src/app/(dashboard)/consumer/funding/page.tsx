@@ -59,6 +59,8 @@ const chainNames: Record<number, string> = {
   421614: "Arb Sepolia",
   59141: "Linea Sepolia",
   80002: "Polygon Amoy",
+  480: "World Chain",
+  4801: "World Chain Sepolia",
 };
 
 export default function ConsumerFundingPage() {
