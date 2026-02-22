@@ -8,6 +8,10 @@ interface FundOptions {
   headless?: boolean;
 }
 
+const FUNDING_NETWORK_NAME = "World Chain Sepolia";
+const FUNDING_CHAIN_ID = 4801;
+const TEST_USDC_ADDRESS = "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88";
+
 export async function fund(amount: string, options: FundOptions): Promise<void> {
   if (!isAuthenticated()) {
     console.log(chalk.red("Not logged in. Run `opengrant login` first."));
@@ -38,13 +42,13 @@ export async function fund(amount: string, options: FundOptions): Promise<void> 
     // Headless mode - show wallet address for direct transfer
     console.log(chalk.yellow("Headless Mode - Direct Transfer"));
     console.log();
-    console.log(chalk.dim("Send USDC (Base network) to:"));
+    console.log(chalk.dim(`Send USDC (${FUNDING_NETWORK_NAME}) to:`));
     console.log(chalk.cyan(walletAddress));
     console.log();
-    console.log(chalk.dim("Network: Base (Chain ID: 8453)"));
-    console.log(chalk.dim("Token: USDC (0x833589fcd6edb6e08f4c7c32d4f71b54bda02913)"));
+    console.log(chalk.dim(`Network: ${FUNDING_NETWORK_NAME} (Chain ID: ${FUNDING_CHAIN_ID})`));
+    console.log(chalk.dim(`Token: USDC (${TEST_USDC_ADDRESS})`));
     console.log();
-    console.log(chalk.yellow("⚠️  Make sure you're sending on Base network, not Ethereum mainnet!"));
+    console.log(chalk.yellow(`⚠️  Make sure you're sending on ${FUNDING_NETWORK_NAME}, not another network.`));
 
     const { confirmed } = await inquirer.prompt([
       {

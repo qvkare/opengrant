@@ -57,11 +57,11 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/opengrant
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-opengrant-dev-secret}
-      CHAIN_ID: ${CHAIN_ID:-8453}
-      RPC_URL: ${RPC_URL:-https://mainnet.base.org}
+      CHAIN_ID: ${CHAIN_ID:-4801}
+      RPC_URL: ${RPC_URL:-https://worldchain-sepolia.g.alchemy.com/public}
       X402_FACILITATOR_URL: ${X402_FACILITATOR_URL:-https://x402.org/facilitator}
       PLATFORM_WALLET: ${PLATFORM_WALLET}
-      USDC_ADDRESS: ${USDC_ADDRESS:-0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913}
+      USDC_ADDRESS: ${USDC_ADDRESS:-0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88}
       OPENGRANT_PAYMENTS_ADDRESS: ${OPENGRANT_PAYMENTS_ADDRESS}
       OPENGRANT_REGISTRY_ADDRESS: ${OPENGRANT_REGISTRY_ADDRESS}
       GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -85,9 +85,8 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.opengrant.dev}
-        NEXT_PUBLIC_PARTICLE_PROJECT_ID: ${NEXT_PUBLIC_PARTICLE_PROJECT_ID}
-        NEXT_PUBLIC_PARTICLE_CLIENT_KEY: ${NEXT_PUBLIC_PARTICLE_CLIENT_KEY}
-        NEXT_PUBLIC_PARTICLE_APP_ID: ${NEXT_PUBLIC_PARTICLE_APP_ID}
+        NEXT_PUBLIC_PRIVY_APP_ID: ${NEXT_PUBLIC_PRIVY_APP_ID}
+        NEXT_PUBLIC_LANDING_URL: ${NEXT_PUBLIC_LANDING_URL:-https://opengrant.dev}
     container_name: opengrant-web
     restart: unless-stopped
     ports:
@@ -95,10 +94,9 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-      NEXT_PUBLIC_PARTICLE_PROJECT_ID: ${NEXT_PUBLIC_PARTICLE_PROJECT_ID}
-      NEXT_PUBLIC_PARTICLE_CLIENT_KEY: ${NEXT_PUBLIC_PARTICLE_CLIENT_KEY}
-      NEXT_PUBLIC_PARTICLE_APP_ID: ${NEXT_PUBLIC_PARTICLE_APP_ID}
-      NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-8453}
+      NEXT_PUBLIC_PRIVY_APP_ID: ${NEXT_PUBLIC_PRIVY_APP_ID}
+      NEXT_PUBLIC_LANDING_URL: ${NEXT_PUBLIC_LANDING_URL:-https://opengrant.dev}
+      NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-4801}
     depends_on:
       - api
 

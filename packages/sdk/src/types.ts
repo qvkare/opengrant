@@ -8,7 +8,7 @@ export interface OpenGrantConfig {
   apiKey: string;
   /** Base URL for OpenGrant API (defaults to https://api.opengrant.dev) */
   baseUrl?: string;
-  /** Chain ID for payment network (default: 8453 = Base). Supports Base, Arbitrum, Linea, Polygon. */
+  /** Chain ID for payment network (default: 4801 = World Chain Sepolia). Supports World Chain, Base, Arbitrum, Linea, Polygon. */
   chainId?: number;
   /** Custom RPC URL (overrides the default for the selected chain) */
   rpcUrl?: string;

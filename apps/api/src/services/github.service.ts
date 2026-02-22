@@ -2,6 +2,7 @@ import { keccak256, encodePacked } from "viem";
 import { eq, and, desc, ilike, or, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { githubRepos, type GithubRepo } from "@opengrant/database";
+import { config } from "../config/index.js";
 
 const GITHUB_API = "https://api.github.com";
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -66,7 +67,7 @@ function githubHeaders(): Record<string, string> {
     Accept: "application/vnd.github+json",
     "User-Agent": "OpenGrant-API",
   };
-  const token = process.env.GITHUB_TOKEN;
+  const token = config.github.token;
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

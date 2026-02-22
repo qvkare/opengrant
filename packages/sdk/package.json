@@ -1,6 +1,6 @@
 {
   "name": "@opengrant/sdk",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "OpenGrant SDK - Pay for APIs with USDC micropayments using the x402 protocol",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -15,7 +15,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",

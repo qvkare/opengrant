@@ -153,8 +153,8 @@ export function getEscrowAddress(
   return ESCROW_ADDRESSES[chainId];
 }
 
-/** Default chain ID (Base) */
-export const DEFAULT_CHAIN_ID = 8453;
+/** Default chain ID (World Chain Sepolia) */
+export const DEFAULT_CHAIN_ID = 4801;
 
 /**
  * Get chain config by chain ID.
@@ -204,9 +204,9 @@ export function getUSDCDomain(chainId: number) {
 }
 
 // Legacy exports for backward compatibility
-export const BASE_CHAIN_ID = DEFAULT_CHAIN_ID;
+export const BASE_CHAIN_ID = 8453;
 export const USDC_ADDRESS = SUPPORTED_CHAINS[8453].usdc;
-export const USDC_DOMAIN = getUSDCDomain(DEFAULT_CHAIN_ID);
+export const USDC_DOMAIN = getUSDCDomain(8453);
 
 /** EIP-3009 TransferWithAuthorization type hash */
 export const TRANSFER_WITH_AUTHORIZATION_TYPEHASH =

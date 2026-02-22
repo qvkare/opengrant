@@ -142,7 +142,7 @@ async function headlessLogin(): Promise<void> {
       ],
       default: "consumer",
     },
-  ]);
+  ] as any);
 
   const spinner = ora("Verifying wallet...").start();
 
@@ -158,7 +158,7 @@ async function headlessLogin(): Promise<void> {
         message: `Confirm wallet address ${chalk.cyan(account.address)}?`,
         default: true,
       },
-    ]);
+    ] as any);
 
     if (!confirm) {
       console.log(chalk.yellow("Login cancelled"));
@@ -223,7 +223,7 @@ export async function login(options: LoginOptions): Promise<void> {
         message: "Do you want to log in with a different account?",
         default: false,
       },
-    ]);
+    ] as any);
 
     if (!relogin) {
       return;

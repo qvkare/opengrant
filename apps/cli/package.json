@@ -1,6 +1,6 @@
 {
   "name": "@opengrant/cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "OpenGrant CLI - Manage API monetization, USDC payments, and OSS funding from the terminal",
   "bin": {
     "opengrant": "dist/index.js"
@@ -9,7 +9,8 @@
   "type": "module",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -18,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opengrant/sdk": "^0.1.0",
+    "@opengrant/sdk": "^1.0.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "conf": "^13.0.1",

@@ -10,6 +10,10 @@ interface DonateOptions {
   redistribute?: boolean;
 }
 
+const FUNDING_CHAIN_ID = 4801;
+const FUNDING_CHAIN_NAME = "World Chain Sepolia";
+const EXPLORER_TX_BASE_URL = "https://sepolia.worldscan.org/tx";
+
 async function readProjectConfig(): Promise<{ tipPercentage?: number }> {
   let dir = process.cwd();
   while (dir !== path.dirname(dir)) {
@@ -68,7 +72,7 @@ export async function donate(repo: string, amount: string, options: DonateOption
   console.log();
   console.log(chalk.bold(`Donate to ${chalk.cyan(repo)}`));
   console.log(chalk.dim(`Amount: ${parsedAmount.toFixed(2)} USDC`));
-  console.log(chalk.dim(`Chain: Base Sepolia (testnet)`));
+  console.log(chalk.dim(`Chain: ${FUNDING_CHAIN_NAME} (testnet)`));
   console.log();
 
   const { confirm } = await inquirer.prompt([
@@ -96,7 +100,7 @@ export async function donate(repo: string, amount: string, options: DonateOption
       apiKey: token,
       baseUrl: apiUrl,
       privateKey,
-      chainId: 84532, // Base Sepolia
+      chainId: FUNDING_CHAIN_ID,
       debug: false,
       tipPercentage: projectConfig.tipPercentage,
       onTip: (result) => {
@@ -119,7 +123,7 @@ export async function donate(repo: string, amount: string, options: DonateOption
 
     spinner.succeed(chalk.green(`Donated $${parsedAmount.toFixed(2)} USDC to ${repo}`));
     console.log(chalk.dim(`  Tx: ${result.txHash}`));
-    console.log(chalk.dim(`  View: https://sepolia.basescan.org/tx/${result.txHash}`));
+    console.log(chalk.dim(`  View: ${EXPLORER_TX_BASE_URL}/${result.txHash}`));
   } catch (error: any) {
     spinner.fail(chalk.red("Donation failed"));
     console.log(chalk.dim(`  ${error.message || error}`));
@@ -249,7 +253,7 @@ export async function claimFunds(options: { privateKey?: string; githubToken?: s
       apiKey: token,
       baseUrl: apiUrl,
       privateKey,
-      chainId: 84532,
+      chainId: FUNDING_CHAIN_ID,
       debug: false,
       tipPercentage: projectConfig.tipPercentage,
     });

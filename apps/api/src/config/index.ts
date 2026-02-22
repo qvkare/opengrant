@@ -49,7 +49,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().default("redis://localhost:6379"),
 
   // Blockchain
-  CHAIN_ID: z.string().default("8453"),
+  CHAIN_ID: z.string().default("4801"),
   RPC_URL: z.string().optional(),
 
   // x402

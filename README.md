@@ -1,5 +1,9 @@
 # OpenGrant
 
+[![npm @opengrant/sdk](https://img.shields.io/npm/v/@opengrant/sdk?label=%40opengrant%2Fsdk&color=blue)](https://www.npmjs.com/package/@opengrant/sdk)
+[![npm @opengrant/cli](https://img.shields.io/npm/v/@opengrant/cli?label=%40opengrant%2Fcli&color=blue)](https://www.npmjs.com/package/@opengrant/cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Crypto-native API marketplace and open source funding platform using x402 micropayments, on-chain USDC escrow, and Chainlink CRE.
 
 ## Overview

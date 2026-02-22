@@ -683,8 +683,8 @@ export class OpenGrant {
     const walletClient = this.signer.getWalletClient();
 
     if (allowance < tipAmount) {
-      // Approve a larger amount (1000 USDC) to avoid repeated approve txs for each tip
-      const approveAmount = parseUnits("1000", USDC_DECIMALS);
+      // Ensure at least 1 USDC allowance while preserving larger requested values
+      const approveAmount = parseUnits("1", USDC_DECIMALS);
       const approveHash = await walletClient.writeContract({
         address: this.usdcAddress,
         abi: USDC_ABI,
@@ -799,13 +799,14 @@ export class OpenGrant {
     });
 
     if (allowance < amount) {
-      this.log(`Approving ${formatUnits(amount, USDC_DECIMALS)} USDC for escrow`);
+      const approveAmount = parseUnits("1", USDC_DECIMALS);
+      this.log(`Approving ${formatUnits(approveAmount > amount ? approveAmount : amount, USDC_DECIMALS)} USDC for escrow`);
       const walletClient = this.signer.getWalletClient();
       const approveHash = await walletClient.writeContract({
         address: this.usdcAddress,
         abi: USDC_ABI,
         functionName: "approve",
-        args: [escrowAddress, amount],
+        args: [escrowAddress, approveAmount > amount ? approveAmount : amount],
         chain: this.viemChain as any,
         account: this.signer.address as `0x${string}`,
       });
@@ -922,13 +923,14 @@ export class OpenGrant {
     });
 
     if (allowance < totalAmount) {
-      this.log(`Approving ${formatUnits(totalAmount, USDC_DECIMALS)} USDC for escrow`);
+      const approveAmount = parseUnits("1", USDC_DECIMALS);
+      this.log(`Approving ${formatUnits(approveAmount > totalAmount ? approveAmount : totalAmount, USDC_DECIMALS)} USDC for escrow`);
       const walletClient = this.signer.getWalletClient();
       const approveHash = await walletClient.writeContract({
         address: this.usdcAddress,
         abi: USDC_ABI,
         functionName: "approve",
-        args: [escrowAddress, totalAmount],
+        args: [escrowAddress, approveAmount > totalAmount ? approveAmount : totalAmount],
         chain: this.viemChain as any,
         account: this.signer.address as `0x${string}`,
       });

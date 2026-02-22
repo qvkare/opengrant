@@ -12,6 +12,7 @@ import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
 import { verifyGithub, createApi, activateApi } from "./commands/publish.js";
+import { showMainMenu } from "./menu.js";
 
 const program = new Command();
 
@@ -216,4 +217,11 @@ ${chalk.bold("Documentation:")}
 `
 );
 
-program.parse();
+const isInteractiveRootLaunch =
+  process.argv.length <= 2 && process.stdin.isTTY && process.stdout.isTTY;
+
+if (isInteractiveRootLaunch) {
+  await showMainMenu();
+} else {
+  program.parse();
+}
