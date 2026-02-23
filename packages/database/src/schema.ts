@@ -299,7 +299,7 @@ export const apiKeys = pgTable(
 
     // Key data
     keyHash: varchar("key_hash", { length: 64 }).notNull().unique(),
-    keyPrefix: varchar("key_prefix", { length: 8 }).notNull(),
+    keyPrefix: varchar("key_prefix", { length: 16 }).notNull(),
     name: varchar("name", { length: 100 }).notNull(),
 
     // Permissions
