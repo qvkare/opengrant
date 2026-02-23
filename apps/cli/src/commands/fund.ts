@@ -8,9 +8,9 @@ interface FundOptions {
   headless?: boolean;
 }
 
-const FUNDING_NETWORK_NAME = "World Chain Sepolia";
-const FUNDING_CHAIN_ID = 4801;
-const TEST_USDC_ADDRESS = "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88";
+const FUNDING_NETWORK_NAME = "Base Sepolia";
+const FUNDING_CHAIN_ID = 84532;
+const TEST_USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
 export async function fund(amount: string, options: FundOptions): Promise<void> {
   if (!isAuthenticated()) {

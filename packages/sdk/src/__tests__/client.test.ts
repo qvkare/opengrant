@@ -199,24 +199,24 @@ describe("OpenGrant Client", () => {
 
   describe("402 Payment Required handling", () => {
     it("should throw PaymentRequiredError when no wallet configured", async () => {
-      const paymentDetails = {
-        version: "1",
-        network: "base",
-        amount: "1000000",
-        token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        recipient: "0x1234567890123456789012345678901234567890",
-        facilitator: "https://facilitator.example.com",
+      // x402 V2: PAYMENT-REQUIRED header is base64-encoded JSON
+      const paymentRequirement = {
+        scheme: "exact",
+        network: "eip155:84532",
+        maxAmountRequired: "1000000",
+        payTo: "0x1234567890123456789012345678901234567890",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         description: "API call",
-        resource: "/v1/test",
-        validUntil: Math.floor(Date.now() / 1000) + 3600,
-        nonce: "0x1234",
+        resource: "http://localhost/v1/test",
+        maxTimeoutSeconds: 60,
+        extra: { name: "USDC", version: "2" },
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: HTTP_STATUS.PAYMENT_REQUIRED,
         headers: new Headers({
-          "X-402-Payment": JSON.stringify(paymentDetails),
+          "PAYMENT-REQUIRED": btoa(JSON.stringify(paymentRequirement)),
         }),
       });
 
@@ -225,7 +225,7 @@ describe("OpenGrant Client", () => {
       await expect(client.get("test-api", "/v1/test")).rejects.toThrow(PaymentRequiredError);
     });
 
-    it("should throw PaymentRequiredError when missing X-402-Payment header", async () => {
+    it("should throw PaymentRequiredError when missing PAYMENT-REQUIRED header", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: HTTP_STATUS.PAYMENT_REQUIRED,
@@ -235,23 +235,23 @@ describe("OpenGrant Client", () => {
       const client = new OpenGrant({ apiKey: "og_test_key", autoRetry: false });
 
       await expect(client.get("test-api", "/v1/test")).rejects.toThrow(
-        /Missing X-402-Payment header/
+        /Missing PAYMENT-REQUIRED header/
       );
     });
 
-    it("should throw PaymentRequiredError when X-402-Payment is invalid JSON", async () => {
+    it("should throw PaymentRequiredError when PAYMENT-REQUIRED is invalid", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: HTTP_STATUS.PAYMENT_REQUIRED,
         headers: new Headers({
-          "X-402-Payment": "invalid json",
+          "PAYMENT-REQUIRED": "not-valid-base64!!!",
         }),
       });
 
       const client = new OpenGrant({ apiKey: "og_test_key", autoRetry: false });
 
       await expect(client.get("test-api", "/v1/test")).rejects.toThrow(
-        /Invalid X-402-Payment header/
+        /Invalid PAYMENT-REQUIRED header/
       );
     });
   });

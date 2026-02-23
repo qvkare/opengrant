@@ -11,7 +11,9 @@
     "simulate:payment": "cre workflow simulate ./payment-verification",
     "deploy:usage": "cre workflow deploy ./usage-aggregation",
     "deploy:health": "cre workflow deploy ./health-monitoring",
-    "deploy:payment": "cre workflow deploy ./payment-verification"
+    "deploy:payment": "cre workflow deploy ./payment-verification",
+    "simulate:ai": "cre workflow simulate ./ai-api-analyzer",
+    "deploy:ai": "cre workflow deploy ./ai-api-analyzer"
   },
   "dependencies": {
     "@chainlink/cre-sdk": "^1.0.9",

@@ -1,23 +1,27 @@
-# OpenGrant
+<div align="center">
+  <h1>OpenGrant</h1>
 
-[![npm @opengrant/sdk](https://img.shields.io/npm/v/@opengrant/sdk?label=%40opengrant%2Fsdk&color=blue)](https://www.npmjs.com/package/@opengrant/sdk)
-[![npm @opengrant/cli](https://img.shields.io/npm/v/@opengrant/cli?label=%40opengrant%2Fcli&color=blue)](https://www.npmjs.com/package/@opengrant/cli)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![npm @opengrant/sdk](https://img.shields.io/npm/v/@opengrant/sdk?label=%40opengrant%2Fsdk&color=blue)](https://www.npmjs.com/package/@opengrant/sdk)
+  [![npm @opengrant/cli](https://img.shields.io/npm/v/@opengrant/cli?label=%40opengrant%2Fcli&color=blue)](https://www.npmjs.com/package/@opengrant/cli)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Crypto-native API marketplace and open source funding platform using x402 micropayments, on-chain USDC escrow, and Chainlink CRE.
+</div>
+
+Crypto native API marketplace and open source funding platform where AI agents autonomously discover, pay for, and consume APIs while funding the open source projects behind them all through x402 micropayments, onchain USDC escrow, and Chainlink CRE.
 
 ## Overview
 
-OpenGrant enables open-source projects to monetize their APIs through HTTP-native micropayments **and** receive direct funding through trustless on-chain escrow. Built on multi-chain EVM (World Chain, Base, Arbitrum, Linea, Polygon) with USDC, it provides instant, low-cost payments with 2-second finality.
+OpenGrant enables opensource projects to monetize their APIs through HTTP native micropayments **and** receive direct funding through trustless onchain escrow. AI agents use Claude to plan and execute API calls with automatic USDC payments, and a Chainlink CRE workflow continuously analyzes API health using AI. Built on multi chain EVM (Base, Arbitrum, Linea, Polygon, World Chain) with USDC, it provides instant, low-cost payments with 2-second finality.
 
 ### Key Features
 
+- **AI Agent**: Autonomous Claude-powered agent that discovers, pays for, and consumes APIs with x402 micropayments
 - **x402 Protocol**: HTTP-native micropayments via the 402 Payment Required status code
 - **Open Source Funding**: USDC escrow for direct donations and dependency-based stack funding
 - **Stack Fund**: Upload package.json/Cargo.toml/go.mod to fund your entire dependency tree
 - **Trustless Escrow**: On-chain USDC escrow with ECDSA-signed claims, 365-day refund protection
-- **Multi-Chain**: Supports World Chain, Ethereum, Base, Arbitrum, Linea, Polygon (mainnets + testnets)
-- **Chainlink CRE**: Decentralized workflow orchestration for payment verification and settlements
+- **Multi-Chain**: Supports Base, Ethereum, Arbitrum, Linea, Polygon, World Chain (mainnets + testnets)
+- **Chainlink CRE**: Decentralized workflow orchestration for payment verification, settlements, and AI-powered API analysis
 - **USDC Payments**: Stable, predictable pricing for API consumers and donors
 - **Privy Wallet**: Seamless wallet abstraction with email/social login and embedded wallets
 - **Publisher Vaults**: ERC-4626 + PaymentSplitter for revenue distribution
@@ -33,24 +37,29 @@ OpenGrant enables open-source projects to monetize their APIs through HTTP-nativ
 │  │(Next.js) │  │(Node.js) │  │   (TS)   │  │    (Express)       │   │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────────┬───────────┘   │
 │       │             │             │                  │               │
-│       └─────────────┴─────────────┴──────────────────┘               │
-│                              │                                       │
-│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│       └──────┬──────┴─────────────┴──────────────────┘               │
+│              │                                                       │
+│  ┌───────────┴────────────────────────────────────────────────────┐  │
+│  │                   AI Agent (Claude)                            │  │
+│  │  Plan API calls → Execute with x402 → Synthesize results      │  │
+│  └───────────┬────────────────────────────────────────────────────┘  │
+│              │                                                       │
+│  ┌───────────┴────────────────────────────────────────────────────┐  │
 │  │                    x402 Payment Layer                          │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐        │  │
 │  │  │  Facilitator │  │  Verifier   │  │  EIP-3009 Sigs  │        │  │
 │  │  └─────────────┘  └─────────────┘  └─────────────────┘        │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-│                              │                                       │
-│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│  └───────────┬────────────────────────────────────────────────────┘  │
+│              │                                                       │
+│  ┌───────────┴────────────────────────────────────────────────────┐  │
 │  │                    Chainlink CRE                               │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐        │  │
-│  │  │   Payment   │  │   Usage     │  │     Health      │        │  │
-│  │  │ Verification│  │ Aggregation │  │   Monitoring    │        │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────────┘        │  │
-│  └────────────────────────────────────────────────────────────────┘  │
-│                              │                                       │
-│  ┌───────────────────────────┴────────────────────────────────────┐  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌──────────┐ ┌────────────┐  │  │
+│  │  │   Payment   │ │   Usage     │ │  Health  │ │ AI API     │  │  │
+│  │  │ Verification│ │ Aggregation │ │ Monitor  │ │ Analyzer   │  │  │
+│  │  └─────────────┘ └─────────────┘ └──────────┘ └────────────┘  │  │
+│  └───────────┬────────────────────────────────────────────────────┘  │
+│              │                                                       │
+│  ┌───────────┴────────────────────────────────────────────────────┐  │
 │  │                Smart Contracts (Multi-Chain EVM)               │  │
 │  │  ┌──────────┐ ┌──────────┐ ┌────────────┐ ┌───────────────┐   │  │
 │  │  │ Registry │ │ Payments │ │   Escrow   │ │Publisher Vault│   │  │
@@ -65,17 +74,21 @@ OpenGrant enables open-source projects to monetize their APIs through HTTP-nativ
 opengrant/
 ├── apps/
 │   ├── api/             # Express 5 API server
-│   │   ├── routes/v1/   # REST endpoints (auth, apis, consumer, publisher, fund)
+│   │   ├── routes/v1/   # REST endpoints (auth, apis, consumer, publisher, fund, internal)
 │   │   └── services/    # GitHub, escrow, dependency, payment services
 │   ├── web/             # Next.js 16 web application
-│   │   └── app/fund/    # Fund explore, project detail, stack fund, claim pages
-│   └── cli/             # Command-line interface
+│   │   └── src/app/fund/ # Fund explore, project detail, stack fund, claim pages
+│   ├── cli/             # Command-line interface
+│   └── ai-agent/        # AI Agent demo (Claude + x402 payments)
+│       ├── src/         # Agent core, orchestrator, reporter
+│       └── demo-api/    # Demo publisher API (code scanner)
 ├── packages/
 │   ├── database/        # Drizzle ORM schema (publishers, apis, repos, donations)
 │   ├── sdk/             # TypeScript SDK for consumers
 │   ├── contracts/       # Solidity smart contracts (Foundry)
 │   │   └── src/         # Registry, Payments, Escrow, Factory, GRANT token
 │   └── cre-workflows/   # Chainlink CRE workflow definitions
+│       └── ai-api-analyzer/ # CRE AI workflow (Claude-powered API analysis)
 └── docker-compose.yml
 ```
 
@@ -240,6 +253,62 @@ Publishers can verify their GitHub identity to link their APIs to GitHub reposit
 
 This means a project's fund page (`/fund/owner/name`) can show linked APIs, and a publisher's API page can show the associated funding status. The two revenue streams (donations and API income) remain separate wallets but are unified through GitHub identity.
 
+## AI Integration
+
+OpenGrant integrates AI at two layers — an autonomous agent that consumes APIs with automatic payments, and a Chainlink CRE workflow that continuously analyzes platform health using Claude.
+
+### AI Agent (`apps/ai-agent/`)
+
+An autonomous AI agent that uses Claude to plan, execute, and synthesize API calls — paying for each call automatically via x402 micropayments.
+
+**Key files:**
+- [`apps/ai-agent/src/agent.ts`](apps/ai-agent/src/agent.ts) — Core agent: Claude-powered planning + execution via OpenGrant SDK
+- [`apps/ai-agent/src/index.ts`](apps/ai-agent/src/index.ts) — Orchestrator (balance check → discover → plan → execute → synthesize)
+- [`apps/ai-agent/src/reporter.ts`](apps/ai-agent/src/reporter.ts) — Terminal report formatter
+- [`apps/ai-agent/demo-api/src/index.ts`](apps/ai-agent/demo-api/src/index.ts) — Publisher API (code scanner)
+
+**How it works:**
+1. Agent discovers APIs on the OpenGrant marketplace
+2. Claude analyzes the task and creates an execution plan
+3. Each API call goes through x402 — automatic USDC micropayment per request
+4. Claude synthesizes all results into a final report
+
+```bash
+# Setup
+cp apps/ai-agent/.env.example apps/ai-agent/.env
+# Fill in OPENGRANT_API_KEY, PRIVATE_KEY, ANTHROPIC_API_KEY
+
+# Start the publisher API (port 4000)
+pnpm --filter @opengrant/ai-agent demo-api
+
+# Run the agent
+pnpm --filter @opengrant/ai-agent dev "Analyze this code for quality issues"
+```
+
+### CRE AI Workflow (`packages/cre-workflows/ai-api-analyzer/`)
+
+A Chainlink CRE workflow that runs hourly on decentralized oracle nodes, fetching API metrics and analyzing them with Claude.
+
+**Key files:**
+- [`packages/cre-workflows/ai-api-analyzer/src/index.ts`](packages/cre-workflows/ai-api-analyzer/src/index.ts) — CRE workflow: fetch metrics → Claude analysis → submit report
+- [`packages/cre-workflows/ai-api-analyzer/workflow.yaml`](packages/cre-workflows/ai-api-analyzer/workflow.yaml) — CRE deployment config
+- [`packages/cre-workflows/ai-api-analyzer/config.json`](packages/cre-workflows/ai-api-analyzer/config.json) — Schedule + API URLs
+- [`apps/api/src/routes/v1/internal.routes.ts`](apps/api/src/routes/v1/internal.routes.ts) — API endpoints consumed by the workflow
+
+**Consensus strategy (for decentralized nodes):**
+- Claude is prompted to return enum-only values (HEALTHY / NEEDS_ATTENTION / CRITICAL)
+- `normalizeEnum()` maps LLM output variations to canonical values
+- Results are sorted by apiId for deterministic ordering
+- Timestamps are rounded to the hour
+
+```bash
+# Simulate the CRE workflow locally
+pnpm --filter @opengrant/cre-workflows simulate:ai
+
+# Deploy to CRE network
+pnpm --filter @opengrant/cre-workflows deploy:ai
+```
+
 ## Environment Variables
 
 | Variable | Description |
@@ -247,7 +316,7 @@ This means a project's fund page (`/fund/owner/name`) can show linked APIs, and 
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
 | `JWT_SECRET` | Secret for JWT token signing (min 32 chars) |
-| `CHAIN_ID` | Blockchain chain ID (4801 for World Chain Sepolia) |
+| `CHAIN_ID` | Blockchain chain ID (84532 for Base Sepolia) |
 | `RPC_URL` | Ethereum RPC URL |
 | `PLATFORM_WALLET` | Platform fee recipient address |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy application ID |
@@ -270,34 +339,36 @@ Contracts are built with Foundry and support 11 EVM chains (6 mainnets + 5 testn
 - **GRANTStaking**: Staking contract for fee discounts
 - **FeeDiscountOracle**: Tier-based fee discounts based on GRANT staking
 
-### Deployed Contracts (World Chain Sepolia)
+### Deployed Contracts (Base Sepolia)
+
+All contracts are verified with source code on Blockscout:
 
 | Contract | Address |
 |----------|---------|
-| OpenGrantRegistry (Proxy) | [`0x9E82afb28b87957AFe50464A5717b5B53E395D0D`](https://sepolia.worldscan.org/address/0x9E82afb28b87957AFe50464A5717b5B53E395D0D) |
-| OpenGrantRegistry (Impl) | [`0x74A25B263c47bE53081274dB037a8182BD9eC90e`](https://sepolia.worldscan.org/address/0x74A25B263c47bE53081274dB037a8182BD9eC90e) |
-| OpenGrantPayments | [`0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135`](https://sepolia.worldscan.org/address/0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135) |
-| OpenGrantFactory | [`0x8ec138B556A2c0324146e259d9eBEA38A9575cA0`](https://sepolia.worldscan.org/address/0x8ec138B556A2c0324146e259d9eBEA38A9575cA0) |
-| OpenGrantEscrow | [`0x2e5c75c560D4877899a49206c629d04b58faD51A`](https://sepolia.worldscan.org/address/0x2e5c75c560D4877899a49206c629d04b58faD51A) |
-| GRANTToken | [`0xF388E071bD758261980d585359Ce2BA0024A8D46`](https://sepolia.worldscan.org/address/0xF388E071bD758261980d585359Ce2BA0024A8D46) |
-| GRANTStaking | [`0x4745DE55e4037b87768AB63Be1F479E4361096c1`](https://sepolia.worldscan.org/address/0x4745DE55e4037b87768AB63Be1F479E4361096c1) |
-| FeeDiscountOracle | [`0x00D8612EeE60258453FA7685Aa667c7b0aAAF3a6`](https://sepolia.worldscan.org/address/0x00D8612EeE60258453FA7685Aa667c7b0aAAF3a6) |
+| OpenGrantRegistry (Proxy) | [`0x9E82afb28b87957AFe50464A5717b5B53E395D0D`](https://base-sepolia.blockscout.com/address/0x9E82afb28b87957AFe50464A5717b5B53E395D0D) |
+| OpenGrantRegistry (Impl) | [`0x74A25B263c47bE53081274dB037a8182BD9eC90e`](https://base-sepolia.blockscout.com/address/0x74A25B263c47bE53081274dB037a8182BD9eC90e) |
+| OpenGrantPayments | [`0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135`](https://base-sepolia.blockscout.com/address/0x2a5766F112666B52d2D7E2280dBa76CC3FC6d135) |
+| OpenGrantFactory | [`0x8ec138B556A2c0324146e259d9eBEA38A9575cA0`](https://base-sepolia.blockscout.com/address/0x8ec138B556A2c0324146e259d9eBEA38A9575cA0) |
+| OpenGrantEscrow | [`0x6c21371a0758c525f8632ee6466d0b7c35538953`](https://base-sepolia.blockscout.com/address/0x6c21371a0758c525f8632ee6466d0b7c35538953) |
+| GRANTToken | [`0x2e5c75c560D4877899a49206c629d04b58faD51A`](https://base-sepolia.blockscout.com/address/0x2e5c75c560D4877899a49206c629d04b58faD51A) |
+| GRANTStaking | [`0xF388E071bD758261980d585359Ce2BA0024A8D46`](https://base-sepolia.blockscout.com/address/0xF388E071bD758261980d585359Ce2BA0024A8D46) |
+| FeeDiscountOracle | [`0x4745DE55e4037b87768AB63Be1F479E4361096c1`](https://base-sepolia.blockscout.com/address/0x4745DE55e4037b87768AB63Be1F479E4361096c1) |
 
 ### Supported Chains
 
 | Chain | Chain ID | Type |
 |-------|----------|------|
-| World Chain | 480 | Mainnet |
-| Ethereum | 1 | Mainnet |
 | Base | 8453 | Mainnet |
+| Ethereum | 1 | Mainnet |
 | Arbitrum One | 42161 | Mainnet |
 | Linea | 59144 | Mainnet |
 | Polygon PoS | 137 | Mainnet |
-| World Chain Sepolia | 4801 | Testnet |
-| Base Sepolia | 84532 | Testnet |
+| World Chain | 480 | Mainnet |
+| Base Sepolia | 84532 | Testnet (default) |
 | Arbitrum Sepolia | 421614 | Testnet |
 | Linea Sepolia | 59141 | Testnet |
 | Polygon Amoy | 80002 | Testnet |
+| World Chain Sepolia | 4801 | Testnet |
 
 ## Testing
 

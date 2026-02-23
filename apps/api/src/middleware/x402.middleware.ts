@@ -19,12 +19,27 @@ export interface PaymentRequirement {
 }
 
 /**
- * x402 Payment Payload from client
+ * x402 V2 Payment Payload from client (payment-signature header)
  */
 export interface PaymentPayload {
   x402Version: number;
-  scheme: "exact";
-  network: string;
+  resource?: {
+    url: string;
+    description?: string;
+    mimeType?: string;
+  };
+  accepted?: {
+    scheme: string;
+    network: string;
+    amount: string;
+    asset: string;
+    payTo: string;
+    maxTimeoutSeconds?: number;
+    extra?: Record<string, unknown>;
+  };
+  // Legacy v1 fields (kept for backward compat)
+  scheme?: "exact";
+  network?: string;
   payload: {
     signature: string;
     authorization: {
@@ -124,7 +139,7 @@ function decodePaymentPayload(header: string): PaymentPayload | null {
  */
 async function verifyPaymentWithFacilitator(
   paymentPayload: PaymentPayload,
-  paymentRequirement: PaymentRequirement,
+  paymentRequirements: Record<string, unknown>,
   facilitatorUrl: string
 ): Promise<{ valid: boolean; txHash?: string; error?: string }> {
   try {
@@ -135,33 +150,101 @@ async function verifyPaymentWithFacilitator(
       },
       body: JSON.stringify({
         paymentPayload,
-        paymentRequirements: paymentRequirement,
+        paymentRequirements,
       }),
     });
 
     const result = await response.json() as {
+      // x402 V2 facilitator response fields
+      isValid?: boolean;
+      invalidReason?: string;
+      invalidMessage?: string;
+      payer?: string;
+      // Legacy V1 fields (fallback)
       success?: boolean;
       txHash?: string;
-      txID?: string;
-      errorReason?: string;
       error?: string;
     };
 
-    if (response.ok && result.success) {
+    if (response.ok && (result.isValid || result.success)) {
       return {
         valid: true,
-        txHash: result.txHash || result.txID,
+        txHash: result.payer || result.txHash || `verified-${Date.now().toString(16)}`,
       };
     }
 
     return {
       valid: false,
-      error: result.errorReason || result.error || "Verification failed",
+      error: result.invalidMessage || result.invalidReason || result.error || "Verification failed",
     };
   } catch (error) {
     return {
       valid: false,
       error: error instanceof Error ? error.message : "Facilitator request failed",
+    };
+  }
+}
+
+/**
+ * Settlement queue — serializes settle calls to avoid facilitator nonce conflicts.
+ * The facilitator uses its own signing key to submit on-chain txs; concurrent calls
+ * cause nonce collisions. This queue ensures settlements execute one at a time.
+ */
+let settleQueue: Promise<void> = Promise.resolve();
+
+function enqueueSettlement(
+  paymentPayload: PaymentPayload,
+  paymentRequirements: Record<string, unknown>,
+  facilitatorUrl: string
+): void {
+  settleQueue = settleQueue
+    .then(() => settlePaymentWithFacilitator(paymentPayload, paymentRequirements, facilitatorUrl))
+    .then((result) => {
+      if (result.txHash) {
+        console.log("[x402] Settlement OK, txHash:", result.txHash);
+      } else {
+        console.warn("[x402] Settlement failed:", result.error);
+      }
+    })
+    .catch((err) => {
+      console.error("[x402] Settlement error:", err.message || err);
+    });
+}
+
+/**
+ * Settle payment on-chain via x402 facilitator.
+ * Calls /settle to execute the actual transferWithAuthorization on the blockchain.
+ */
+async function settlePaymentWithFacilitator(
+  paymentPayload: PaymentPayload,
+  paymentRequirements: Record<string, unknown>,
+  facilitatorUrl: string
+): Promise<{ txHash?: string; error?: string }> {
+  try {
+    const response = await fetch(`${facilitatorUrl}/settle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentPayload, paymentRequirements }),
+    });
+
+    const text = await response.text();
+    let result: Record<string, unknown>;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      return { error: `Non-JSON response: ${text.substring(0, 200)}` };
+    }
+
+    // x402 facilitator returns `transaction` (not `txHash`) and `success`
+    const txHash = (result.transaction || result.txHash) as string | undefined;
+    if (response.ok && (result.success === true || txHash)) {
+      return { txHash: txHash || undefined };
+    }
+
+    return { error: (result.errorReason || result.errorMessage || result.error || "Settlement failed") as string };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Settlement request failed",
     };
   }
 }
@@ -253,13 +336,29 @@ export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): Re
       return;
     }
 
-    // Verify with facilitator
-    const paymentRequirement = buildPaymentRequired(req, routeConfig, payTo, network);
-    const verification = await verifyPaymentWithFacilitator(
-      paymentPayload,
-      paymentRequirement,
-      facilitatorUrl
-    );
+    // Verify with facilitator (skip in development when facilitator is unreachable)
+    let verification: { valid: boolean; txHash?: string; error?: string };
+    if (process.env.SKIP_X402_FACILITATOR === "true") {
+      // Dev mode: trust the signed authorization without facilitator verification
+      verification = { valid: true, txHash: `dev-${Date.now().toString(16)}` };
+    } else {
+      const paymentRequirement = buildPaymentRequired(req, routeConfig, payTo, network);
+      // Build facilitator-compatible paymentRequirements (x402 V2 uses `amount` not `maxAmountRequired`)
+      const facilitatorRequirements = {
+        scheme: paymentRequirement.scheme,
+        network: paymentRequirement.network,
+        amount: paymentRequirement.maxAmountRequired,
+        asset: paymentRequirement.asset,
+        payTo: paymentRequirement.payTo,
+        maxTimeoutSeconds: paymentRequirement.maxTimeoutSeconds || 60,
+        extra: paymentRequirement.extra || { name: "USDC", version: "2" },
+      };
+      verification = await verifyPaymentWithFacilitator(
+        paymentPayload,
+        facilitatorRequirements,
+        facilitatorUrl
+      );
+    }
 
     if (!verification.valid) {
       res.status(402).json({
@@ -267,6 +366,22 @@ export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): Re
         reason: verification.error,
       });
       return;
+    }
+
+    // Settle payment on-chain via facilitator (fire-and-forget)
+    // This executes the actual USDC transferWithAuthorization on-chain
+    if (process.env.SKIP_X402_FACILITATOR !== "true") {
+      const paymentRequirement = buildPaymentRequired(req, routeConfig, payTo, network);
+      const settleRequirements = {
+        scheme: paymentRequirement.scheme,
+        network: paymentRequirement.network,
+        amount: paymentRequirement.maxAmountRequired,
+        asset: paymentRequirement.asset,
+        payTo: paymentRequirement.payTo,
+        maxTimeoutSeconds: paymentRequirement.maxTimeoutSeconds || 60,
+        extra: paymentRequirement.extra || { name: "USDC", version: "2" },
+      };
+      enqueueSettlement(paymentPayload, settleRequirements, facilitatorUrl);
     }
 
     // Attach payment info to request for downstream handlers

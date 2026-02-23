@@ -40,7 +40,7 @@ const CHAIN_MAP: Record<number, any> = {
 };
 
 function getViemChain() {
-  return CHAIN_MAP[config.blockchain.chainId] ?? base;
+  return CHAIN_MAP[config.blockchain.chainId] ?? baseSepolia;
 }
 
 // USDC contract on Base

@@ -255,57 +255,69 @@ export class OpenGrant {
   }
 
   /**
-   * Parse 402 Payment Required response
+   * Parse 402 Payment Required response (x402 V2 protocol)
+   * Reads PAYMENT-REQUIRED header (base64-encoded JSON) and maps to PaymentDetails
    */
   private parsePaymentDetails(headers: Headers): PaymentDetails {
-    const x402Header = headers.get("X-402-Payment");
-    if (!x402Header) {
-      throw new PaymentRequiredError("Missing X-402-Payment header");
+    // x402 V2: PAYMENT-REQUIRED header (base64-encoded JSON)
+    const paymentRequiredHeader = headers.get("PAYMENT-REQUIRED");
+    if (!paymentRequiredHeader) {
+      throw new PaymentRequiredError("Missing PAYMENT-REQUIRED header");
     }
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(x402Header);
+      const decoded = atob(paymentRequiredHeader);
+      parsed = JSON.parse(decoded);
     } catch {
-      throw new PaymentRequiredError("Invalid X-402-Payment header");
+      throw new PaymentRequiredError("Invalid PAYMENT-REQUIRED header (base64/JSON decode failed)");
     }
 
-    // Runtime validation of payment details
-    const details = parsed as Record<string, unknown>;
+    // x402 V2 fields: scheme, network, maxAmountRequired, payTo, asset, resource, description, maxTimeoutSeconds
+    const v2 = parsed as Record<string, unknown>;
     if (
-      typeof details !== "object" ||
-      details === null ||
-      typeof details.amount !== "string" ||
-      typeof details.recipient !== "string" ||
-      typeof details.facilitator !== "string" ||
-      typeof details.nonce !== "string"
+      typeof v2 !== "object" ||
+      v2 === null ||
+      typeof v2.maxAmountRequired !== "string" ||
+      typeof v2.payTo !== "string"
     ) {
       throw new PaymentRequiredError(
-        "Invalid X-402-Payment header: missing required fields (amount, recipient, facilitator, nonce)"
+        "Invalid PAYMENT-REQUIRED header: missing required fields (maxAmountRequired, payTo)"
       );
     }
 
-    // Validate recipient is a valid Ethereum address
-    if (!/^0x[a-fA-F0-9]{40}$/.test(details.recipient as string)) {
-      throw new PaymentRequiredError("Invalid recipient address in payment details");
+    // Validate payTo is a valid Ethereum address
+    if (!/^0x[a-fA-F0-9]{40}$/.test(v2.payTo as string)) {
+      throw new PaymentRequiredError("Invalid payTo address in payment details");
     }
 
-    // Validate facilitator is an HTTPS URL
-    try {
-      const facilitatorUrl = new URL(details.facilitator as string);
-      if (facilitatorUrl.protocol !== "https:") {
-        throw new PaymentRequiredError("Facilitator URL must use HTTPS");
-      }
-    } catch (e) {
-      if (e instanceof PaymentRequiredError) throw e;
-      throw new PaymentRequiredError("Invalid facilitator URL in payment details");
-    }
+    // Generate a random nonce for the payment (bytes32)
+    const nonceBytes = new Uint8Array(32);
+    crypto.getRandomValues(nonceBytes);
+    const nonce = "0x" + Array.from(nonceBytes).map(b => b.toString(16).padStart(2, "0")).join("");
 
-    return parsed as PaymentDetails;
+    // Calculate validUntil from maxTimeoutSeconds
+    const maxTimeout = typeof v2.maxTimeoutSeconds === "number" ? v2.maxTimeoutSeconds : 60;
+    const validUntil = Math.floor(Date.now() / 1000) + maxTimeout;
+
+    // Map x402 V2 fields to SDK PaymentDetails
+    return {
+      version: (v2.extra as Record<string, unknown>)?.version as string ?? "2",
+      network: (v2.network as string) ?? "",
+      amount: v2.maxAmountRequired as string,
+      token: (v2.asset as string) ?? "",
+      recipient: v2.payTo as string,
+      facilitator: "", // x402 V2: server handles facilitator verification
+      description: (v2.description as string) ?? "",
+      resource: (v2.resource as string) ?? "",
+      validUntil,
+      nonce,
+    } as PaymentDetails;
   }
 
   /**
-   * Handle payment for 402 response
+   * Handle payment for 402 response (x402 V2)
+   * Signs the EIP-3009 authorization and returns a base64-encoded payment-signature header
    */
   private async handlePayment(
     paymentDetails: PaymentDetails,
@@ -341,34 +353,43 @@ export class OpenGrant {
 
     this.log(`Signing payment for ${formatUnits(amount, USDC_DECIMALS)} USDC`);
 
-    // Sign the payment
+    // Sign the payment (EIP-3009 TransferWithAuthorization)
     const authorization = await this.signer.signPayment(paymentDetails);
 
-    // Submit to facilitator
-    const facilitatorResponse = await this.fetchWithTimeout(
-      paymentDetails.facilitator,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(authorization),
+    // Build x402 V2 payment-signature payload (base64-encoded JSON)
+    // Must include `resource` and `accepted` per x402 V2 spec
+    const accepted = {
+      scheme: "exact" as const,
+      network: paymentDetails.network,
+      amount: paymentDetails.amount,
+      asset: paymentDetails.token,
+      payTo: paymentDetails.recipient,
+      maxTimeoutSeconds: 60,
+      extra: { name: "USDC", version: "2" },
+    };
+
+    const paymentPayload = {
+      x402Version: 2,
+      resource: {
+        url: paymentDetails.resource,
+        description: paymentDetails.description,
+        mimeType: "application/json",
       },
-      this.timeout
-    );
+      accepted,
+      payload: {
+        signature: authorization.signature,
+        authorization: {
+          from: authorization.from,
+          to: authorization.to,
+          value: authorization.value,
+          validAfter: String(authorization.validAfter),
+          validBefore: String(authorization.validBefore),
+          nonce: authorization.nonce,
+        },
+      },
+    };
 
-    if (!facilitatorResponse.ok) {
-      const error = await facilitatorResponse.text();
-      throw new PaymentFailedError(`Facilitator error: ${error}`);
-    }
-
-    const result = await facilitatorResponse.json() as { paymentToken?: string };
-    if (!result.paymentToken) {
-      throw new PaymentFailedError(
-        "Facilitator response missing paymentToken field"
-      );
-    }
-    return result.paymentToken;
+    return btoa(JSON.stringify(paymentPayload));
   }
 
   /**
@@ -426,16 +447,19 @@ export class OpenGrant {
           timeout
         );
 
-        // Handle 402 Payment Required
+        // Handle 402 Payment Required (x402 V2)
         if (response.status === HTTP_STATUS.PAYMENT_REQUIRED) {
+          // Clear any stale payment-signature from previous attempts
+          delete headers["payment-signature"];
+
           const paymentDetails = this.parsePaymentDetails(response.headers);
-          const paymentToken = await this.handlePayment(
+          const paymentSignature = await this.handlePayment(
             paymentDetails,
             options.maxPrice
           );
 
-          // Retry request with payment token
-          headers["X-402-Payment-Token"] = paymentToken;
+          // Retry request with payment-signature header (x402 V2)
+          headers["payment-signature"] = paymentSignature;
           requestOptions.headers = headers;
 
           response = await this.fetchWithTimeout(
@@ -443,6 +467,14 @@ export class OpenGrant {
             requestOptions,
             timeout
           );
+
+          // If retry also fails, throw non-retriable error
+          if (!response.ok) {
+            const errorBody = await response.text();
+            throw new PaymentFailedError(
+              `Payment accepted but API returned ${response.status}: ${errorBody}`
+            );
+          }
         }
 
         // Handle other error statuses
@@ -509,7 +541,8 @@ export class OpenGrant {
           error instanceof UnauthorizedError ||
           error instanceof APINotFoundError ||
           error instanceof InsufficientBalanceError ||
-          error instanceof PaymentRequiredError
+          error instanceof PaymentRequiredError ||
+          error instanceof PaymentFailedError
         ) {
           throw error;
         }

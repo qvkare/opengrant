@@ -312,7 +312,7 @@ export default function PublisherSettingsPage() {
             <p className="text-sm text-muted-foreground">
               Revenue is automatically distributed to the configured addresses
               based on their share percentages. This is managed by your
-              PublisherVault smart contract on World Chain. Changes require an on-chain
+              PublisherVault smart contract on Base. Changes require an on-chain
               transaction.
             </p>
           </div>

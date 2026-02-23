@@ -10,14 +10,14 @@ import {
   custom,
   type Hash,
 } from "viem";
-import { worldchainSepolia } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { useWallet } from "@/contexts/wallet-context";
 import { contracts } from "@/lib/contracts";
 import { ESCROW_ABI, ERC20_ABI } from "@/lib/escrow-abi";
 
-// Use worldchainSepolia for now; switch to worldchain for mainnet
-const chain = worldchainSepolia;
-const chainContracts = contracts.worldchainSepolia;
+// Use baseSepolia for now; switch to base for mainnet
+const chain = baseSepolia;
+const chainContracts = contracts.baseSepolia;
 
 const publicClient = createPublicClient({
   chain,

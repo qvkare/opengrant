@@ -1,0 +1,26 @@
+{
+  "name": "@opengrant/ai-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "setup": "tsx scripts/setup-demo.ts",
+    "demo-api": "tsx demo-api/src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@opengrant/sdk": "workspace:*",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.5.0",
+    "express": "^5.2.1",
+    "ora": "^8.2.0",
+    "viem": "^2.45.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3"
+  }
+}

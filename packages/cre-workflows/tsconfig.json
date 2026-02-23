@@ -13,9 +13,11 @@
     "rootDir": "."
   },
   "include": [
+    "lib/**/*",
     "usage-aggregation/src/**/*",
     "health-monitoring/src/**/*",
-    "payment-verification/src/**/*"
+    "payment-verification/src/**/*",
+    "ai-api-analyzer/src/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }

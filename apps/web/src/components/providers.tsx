@@ -3,7 +3,7 @@
 import React, { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
-import { worldchain, worldchainSepolia, base, baseSepolia } from "viem/chains";
+import { base, baseSepolia, worldchain, worldchainSepolia } from "viem/chains";
 import { WalletContext } from "@/contexts/wallet-context";
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -57,8 +57,8 @@ function PrivyWrapper({ children }: { children: ReactNode }) {
             createOnLogin: "users-without-wallets",
           },
         },
-        defaultChain: worldchainSepolia,
-        supportedChains: [worldchainSepolia, worldchain, baseSepolia, base],
+        defaultChain: baseSepolia,
+        supportedChains: [baseSepolia, base, worldchainSepolia, worldchain],
       }}
     >
       <WalletBridge>{children}</WalletBridge>

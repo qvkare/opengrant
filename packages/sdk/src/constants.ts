@@ -153,8 +153,8 @@ export function getEscrowAddress(
   return ESCROW_ADDRESSES[chainId];
 }
 
-/** Default chain ID (World Chain Sepolia) */
-export const DEFAULT_CHAIN_ID = 4801;
+/** Default chain ID (Base Sepolia) */
+export const DEFAULT_CHAIN_ID = 84532;
 
 /**
  * Get chain config by chain ID.
@@ -190,13 +190,22 @@ export function getNetworkId(chainId: number): string {
 }
 
 /**
+ * USDC EIP-712 domain names per chain.
+ * Base Sepolia uses "USDC", mainnet chains use "USD Coin".
+ * Must match what the on-chain USDC contract's DOMAIN_SEPARATOR uses.
+ */
+const USDC_DOMAIN_NAMES: Partial<Record<number, string>> = {
+  84532: "USDC", // Base Sepolia
+};
+
+/**
  * Build EIP-712 domain for USDC on a specific chain.
- * USDC uses name "USD Coin" and version "2" on all chains.
+ * Domain name varies by chain — Base Sepolia uses "USDC", others use "USD Coin".
  */
 export function getUSDCDomain(chainId: number) {
   const chain = getChainConfig(chainId);
   return {
-    name: "USD Coin",
+    name: USDC_DOMAIN_NAMES[chainId] ?? "USD Coin",
     version: "2",
     chainId: chain.chainId,
     verifyingContract: chain.usdc,

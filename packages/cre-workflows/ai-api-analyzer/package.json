@@ -1,0 +1,15 @@
+{
+  "name": "ai-api-analyzer",
+  "version": "0.1.0",
+  "main": "dist/main.js",
+  "private": true,
+  "scripts": {
+    "postinstall": "bun x cre-setup"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.0.9"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21"
+  }
+}

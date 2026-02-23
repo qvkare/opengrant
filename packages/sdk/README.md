@@ -5,7 +5,7 @@ The official JavaScript/TypeScript SDK for [OpenGrant](https://opengrant.dev) �
 ## Features
 
 - **Pay-per-call APIs** — Call any registered API and pay only for what you use in USDC
-- **Multi-chain** — Base, Arbitrum, Linea, Polygon (mainnet & testnet)
+- **Multi-chain** — Base, Arbitrum, Linea, Polygon, World Chain (mainnet & testnet)
 - **Auto-retry** — Exponential backoff with configurable retries
 - **OSS Donations** — Donate USDC directly to GitHub repos via on-chain escrow
 - **Auto-tip** — Automatically tip linked open source projects on every paid API call
@@ -55,7 +55,7 @@ const client = new OpenGrant({
 
   // Optional
   baseUrl: 'https://api.opengrant.dev', // Default
-  chainId: 8453,    // Base (default). Supports: 1, 8453, 42161, 59144, 137, 84532, 421614, 59141, 80002
+  chainId: 84532,   // Base Sepolia (default). Use 8453 for Base mainnet
   rpcUrl: 'https://...', // Override default RPC for the chain
   timeout: 30000,   // Request timeout ms (default: 30000)
   autoRetry: true,  // Auto-retry on network errors (default: true)
@@ -101,11 +101,12 @@ const response = await client.call('my-api', 'POST', '/v1/endpoint', {
 | Chain | Chain ID | USDC Address |
 |-------|----------|-------------|
 | Base | 8453 | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Ethereum | 1 | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
 | Arbitrum One | 42161 | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
 | Linea | 59144 | `0xFEce4462d57bD51A6A552365a011b95f0E16d9B7` |
 | Polygon PoS | 137 | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` |
-| Ethereum | 1 | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
-| Base Sepolia | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| World Chain | 480 | `0x79A02482A880bCe3F13E09da970dC34dB4cD24D1` |
+| Base Sepolia | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` (default) |
 
 ## Wallet Balance
 
@@ -216,14 +217,14 @@ await client.call('react-docs-api', 'GET', '/v1/search');
 ## Multi-Chain Example
 
 ```typescript
-// Base (default)
-const baseClient = new OpenGrant({ apiKey, privateKey });
+// Base Sepolia (default — testnet)
+const testClient = new OpenGrant({ apiKey, privateKey });
+
+// Base (mainnet)
+const baseClient = new OpenGrant({ apiKey, privateKey, chainId: 8453 });
 
 // Arbitrum
 const arbClient = new OpenGrant({ apiKey, privateKey, chainId: 42161 });
-
-// Base Sepolia (testnet)
-const testClient = new OpenGrant({ apiKey, privateKey, chainId: 84532 });
 ```
 
 ## TypeScript Types

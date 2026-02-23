@@ -1,0 +1,6 @@
+{
+  "schedule": "0 * * * *",
+  "apiUrl": "https://api.opengrant.dev",
+  "anthropicApiUrl": "https://api.anthropic.com",
+  "analysisModel": "claude-haiku-4-5-20251001"
+}

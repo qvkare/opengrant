@@ -22,6 +22,16 @@ function isPrivateUrl(urlStr: string): boolean {
       return true;
     }
 
+    // Allow Docker host access (standard way for containers to reach host services)
+    if (hostname === "host.docker.internal") {
+      return false;
+    }
+
+    // Allow private URLs in development mode (for local demo APIs)
+    if (process.env.NODE_ENV === "development") {
+      return false;
+    }
+
     // Block localhost variants
     if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0") {
       return true;
@@ -305,7 +315,9 @@ async function dynamicX402HandlerSimple(
   next: NextFunction
 ): Promise<void> {
   const apiSlug = req.params.apiSlug as string;
-  const path = "/" + ((req.params as Record<string, string>).path || "");
+  // Express 5 {*path} returns an array of segments, join them back
+  const rawPath = req.params.path;
+  const path = "/" + (Array.isArray(rawPath) ? rawPath.join("/") : (rawPath || ""));
 
   try {
     // Extract consumer ID if authenticated
@@ -426,7 +438,9 @@ async function dynamicX402HandlerQualified(
 ): Promise<void> {
   const publisherSlug = req.params.publisherSlug as string;
   const apiSlug = req.params.apiSlug as string;
-  const path = "/" + ((req.params as Record<string, string>).path || "");
+  // Express 5 {*path} returns an array of segments, join them back
+  const rawPath = req.params.path;
+  const path = "/" + (Array.isArray(rawPath) ? rawPath.join("/") : (rawPath || ""));
 
   try {
     // Extract consumer ID if authenticated
@@ -531,8 +545,9 @@ async function proxyHandler(req: AuthenticatedRequest, res: Response): Promise<v
   }
 
   const { api, endpoint, publisher, consumerId } = context;
-  const path = "/" + (req.params[0] || req.params.apiSlug ? "" : "");
-  const actualPath = req.params[0] ? "/" + req.params[0] : "";
+  // Express 5 {*path} returns array of segments
+  const rawPath = req.params.path;
+  const actualPath = Array.isArray(rawPath) ? "/" + rawPath.join("/") : (rawPath ? "/" + rawPath : "");
 
   // Build target URL with SSRF protection
   const targetUrl = `${api.baseUrl}${actualPath}`;

@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { apis, endpoints, usageRecords } from "@opengrant/database";
-import { config } from "../../config/index.js";
 
 const router = Router();
 
@@ -253,6 +252,86 @@ router.post("/sync-repos", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Sync repos error:", error);
     res.status(500).json({ error: "Failed to sync repos" });
+  }
+});
+
+/**
+ * Get aggregated API metrics for AI analysis
+ * GET /internal/api-metrics
+ *
+ * Called by: CRE ai-api-analyzer workflow
+ * Returns: { apis: Array<{ id, slug, name, status, healthStatus, totalCalls, totalRevenue, uniqueConsumers, avgResponseTimeMs, endpointCount }> }
+ */
+router.get("/api-metrics", async (_req: Request, res: Response) => {
+  try {
+    const allApis = await db
+      .select({
+        id: apis.id,
+        slug: apis.slug,
+        name: apis.name,
+        status: apis.status,
+        healthStatus: apis.healthStatus,
+        totalCalls: apis.totalCalls,
+        totalRevenue: apis.totalRevenue,
+        uniqueConsumers: apis.uniqueConsumers,
+        avgResponseTimeMs: apis.avgResponseTimeMs,
+        lastHealthCheck: apis.lastHealthCheck,
+      })
+      .from(apis);
+
+    const endpointCounts = await db
+      .select({
+        apiId: endpoints.apiId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(endpoints)
+      .where(eq(endpoints.isActive, true))
+      .groupBy(endpoints.apiId);
+
+    const countMap = new Map(endpointCounts.map((e) => [e.apiId, e.count]));
+
+    res.json({
+      apis: allApis.map((api) => ({
+        ...api,
+        endpointCount: countMap.get(api.id) ?? 0,
+      })),
+      collectedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("API metrics error:", error);
+    res.status(500).json({ error: "Failed to fetch API metrics" });
+  }
+});
+
+/**
+ * Receive AI analysis report
+ * POST /internal/ai-report
+ *
+ * Called by: CRE ai-api-analyzer workflow
+ * Body: { analyses: Array<{ slug, rating, recommendation }>, model, analyzedAt }
+ */
+router.post("/ai-report", async (req: Request, res: Response) => {
+  const { analyses, model, analyzedAt } = req.body;
+
+  if (!Array.isArray(analyses)) {
+    return res.status(400).json({ error: "analyses array required" });
+  }
+
+  try {
+    console.log(
+      `[AI Report] Received ${analyses.length} analysis result(s) from model=${model || "unknown"} at ${analyzedAt || new Date().toISOString()}`
+    );
+
+    for (const analysis of analyses) {
+      console.log(
+        `  API ${analysis.slug || analysis.apiId}: rating=${analysis.rating}, recommendation=${analysis.recommendation}`
+      );
+    }
+
+    res.json({ success: true, received: analyses.length });
+  } catch (error) {
+    console.error("AI report error:", error);
+    res.status(500).json({ error: "Failed to process AI report" });
   }
 });
 

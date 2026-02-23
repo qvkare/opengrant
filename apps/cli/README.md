@@ -110,7 +110,7 @@ opengrant config set tipPercentage 5   # Donate 5% of payments to linked OSS
 {
   "apiKey": "og_live_xxx",
   "baseUrl": "https://api.opengrant.dev",
-  "chainId": 8453,
+  "chainId": 84532,
   "tipPercentage": 5
 }
 ```

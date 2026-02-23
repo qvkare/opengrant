@@ -115,7 +115,7 @@ export class PaymentSigner {
 /**
  * Create a payment signer from a private key
  * @param privateKey Wallet private key
- * @param chainId Target chain (default: World Chain Sepolia 4801)
+ * @param chainId Target chain (default: Base Sepolia 84532)
  */
 export function createSigner(
   privateKey: `0x${string}`,

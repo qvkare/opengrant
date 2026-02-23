@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { Command } from "commander";
 import chalk from "chalk";
 import { login } from "./commands/login.js";
@@ -12,6 +10,7 @@ import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
 import { verifyGithub, createApi, activateApi } from "./commands/publish.js";
+import { callApi } from "./commands/call.js";
 import { showMainMenu } from "./menu.js";
 
 const program = new Command();
@@ -88,6 +87,21 @@ program
   .option("--private-key <key>", "Private key (or set OPENGRANT_PRIVATE_KEY env)")
   .option("--github-token <pat>", "GitHub personal access token (or set GITHUB_TOKEN env)")
   .action(claimFunds);
+
+// ========================
+// API Call Command (x402)
+// ========================
+
+program
+  .command("call <api-slug> <method> <path>")
+  .description("Call an API with automatic x402 USDC micropayments")
+  .option("-b, --body <json>", "Request body as JSON string")
+  .option("-p, --params <key=value...>", "Query parameters (repeatable)", (val: string, prev: string[]) => [...prev, val], [] as string[])
+  .option("--private-key <key>", "Wallet private key (or set OPENGRANT_PRIVATE_KEY)")
+  .option("--api-key <key>", "API key (or set OPENGRANT_API_KEY)")
+  .option("--chain-id <id>", "Chain ID (default: 84532)")
+  .option("--max-price <wei>", "Maximum USDC payment in wei (e.g. 1000000 = $1)")
+  .action(callApi);
 
 // ========================
 // Usage & Stats Commands

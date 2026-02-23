@@ -10,9 +10,9 @@ interface DonateOptions {
   redistribute?: boolean;
 }
 
-const FUNDING_CHAIN_ID = 4801;
-const FUNDING_CHAIN_NAME = "World Chain Sepolia";
-const EXPLORER_TX_BASE_URL = "https://sepolia.worldscan.org/tx";
+const FUNDING_CHAIN_ID = 84532;
+const FUNDING_CHAIN_NAME = "Base Sepolia";
+const EXPLORER_TX_BASE_URL = "https://sepolia.basescan.org/tx";
 
 async function readProjectConfig(): Promise<{ tipPercentage?: number }> {
   let dir = process.cwd();
