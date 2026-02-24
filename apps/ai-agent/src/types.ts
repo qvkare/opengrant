@@ -34,6 +34,7 @@ export interface StepResult {
   data?: unknown;
   error?: string;
   costUSDC: string;
+  txHash?: string;
   durationMs: number;
 }
 

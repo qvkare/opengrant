@@ -4,7 +4,9 @@
 
 import chalk from "chalk";
 import type { FinalReport, StepResult } from "./types.js";
-import { formatUSDC, truncate } from "./utils.js";
+import { formatUSDC, truncate, getTxUrl } from "./utils.js";
+
+const CHAIN_ID = parseInt(process.env.CHAIN_ID || "84532");
 
 function printDivider(char = "─", width = 60) {
   console.log(chalk.dim(char.repeat(width)));
@@ -20,6 +22,9 @@ function printStepResult(result: StepResult, index: number) {
 
   if (result.success) {
     console.log(chalk.dim(`    Cost: ${formatUSDC(result.costUSDC)} | Duration: ${result.durationMs}ms`));
+    if (result.txHash) {
+      console.log(chalk.dim(`    Tx: ${chalk.underline(getTxUrl(result.txHash, CHAIN_ID))}`));
+    }
     if (result.data) {
       const preview = truncate(JSON.stringify(result.data), 80);
       console.log(chalk.dim(`    Data: ${preview}`));
@@ -56,6 +61,17 @@ export function printReport(report: FinalReport) {
   console.log(`  Total duration: ${report.totalDurationMs}ms`);
   console.log(`  Balance before: ${formatUSDC(report.balanceBefore)}`);
   console.log(`  Balance after: ${formatUSDC(report.balanceAfter)}`);
+
+  // Transactions
+  const txHashes = report.results.filter((r) => r.txHash).map((r) => r.txHash!);
+  if (txHashes.length > 0) {
+    console.log();
+    printDivider();
+    console.log(chalk.bold("Transactions:"));
+    txHashes.forEach((hash, i) => {
+      console.log(`  ${i + 1}. ${chalk.underline(getTxUrl(hash, CHAIN_ID))}`);
+    });
+  }
 
   // Synthesis
   if (report.synthesis) {

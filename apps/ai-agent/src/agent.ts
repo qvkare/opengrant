@@ -103,6 +103,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           success: true,
           data: response.data,
           costUSDC: response.payment?.amount ?? "0",
+          txHash: response.payment?.txHash,
           durationMs: Date.now() - startMs,
         });
       } catch (error: unknown) {
@@ -137,6 +138,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
               success: true,
               data: retryResponse.data,
               costUSDC: retryResponse.payment?.amount ?? "0",
+              txHash: retryResponse.payment?.txHash,
               durationMs: Date.now() - startMs,
             });
             continue;

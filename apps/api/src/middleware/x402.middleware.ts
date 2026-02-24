@@ -169,7 +169,7 @@ async function verifyPaymentWithFacilitator(
     if (response.ok && (result.isValid || result.success)) {
       return {
         valid: true,
-        txHash: result.payer || result.txHash || `verified-${Date.now().toString(16)}`,
+        txHash: result.txHash || `verified-${Date.now().toString(16)}`,
       };
     }
 
@@ -368,8 +368,8 @@ export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): Re
       return;
     }
 
-    // Settle payment on-chain via facilitator (fire-and-forget)
-    // This executes the actual USDC transferWithAuthorization on-chain
+    // Settle payment on-chain via facilitator (synchronous — returns real txHash)
+    let settleTxHash: string | undefined;
     if (process.env.SKIP_X402_FACILITATOR !== "true") {
       const paymentRequirement = buildPaymentRequired(req, routeConfig, payTo, network);
       const settleRequirements = {
@@ -381,13 +381,21 @@ export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): Re
         maxTimeoutSeconds: paymentRequirement.maxTimeoutSeconds || 60,
         extra: paymentRequirement.extra || { name: "USDC", version: "2" },
       };
-      enqueueSettlement(paymentPayload, settleRequirements, facilitatorUrl);
+      const settleResult = await settlePaymentWithFacilitator(paymentPayload, settleRequirements, facilitatorUrl);
+      if (settleResult.txHash) {
+        settleTxHash = settleResult.txHash;
+        console.log("[x402] Settlement OK, txHash:", settleTxHash);
+      } else {
+        console.warn("[x402] Settlement failed:", settleResult.error);
+      }
     }
+
+    const finalTxHash = settleTxHash || verification.txHash || `verified-${Date.now().toString(16)}`;
 
     // Attach payment info to request for downstream handlers
     (req as any).x402Payment = {
       verified: true,
-      txHash: verification.txHash,
+      txHash: finalTxHash,
       amount: paymentAmount.toString(),
       payer: paymentPayload.payload.authorization.from,
       timestamp: Date.now(),
@@ -398,7 +406,7 @@ export function createX402Middleware(middlewareConfig: X402MiddlewareConfig): Re
       "PAYMENT-RESPONSE": Buffer.from(
         JSON.stringify({
           success: true,
-          txHash: verification.txHash,
+          txHash: finalTxHash,
         })
       ).toString("base64"),
     });

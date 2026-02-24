@@ -30,3 +30,22 @@ export function truncate(str: string, maxLen: number): string {
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen - 3) + "...";
 }
+
+const EXPLORER_URLS: Record<number, string> = {
+  1: "https://etherscan.io/tx/",
+  8453: "https://basescan.org/tx/",
+  42161: "https://arbiscan.io/tx/",
+  59144: "https://lineascan.build/tx/",
+  137: "https://polygonscan.com/tx/",
+  480: "https://worldscan.org/tx/",
+  84532: "https://base-sepolia.blockscout.com/tx/",
+  421614: "https://sepolia.arbiscan.io/tx/",
+  59141: "https://sepolia.lineascan.build/tx/",
+  80002: "https://amoy.polygonscan.com/tx/",
+  4801: "https://sepolia.worldscan.org/tx/",
+};
+
+export function getTxUrl(txHash: string, chainId: number): string {
+  const base = EXPLORER_URLS[chainId] || EXPLORER_URLS[84532];
+  return `${base}${txHash}`;
+}
