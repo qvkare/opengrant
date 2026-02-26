@@ -9,7 +9,7 @@ import { donate, claimFunds } from "./commands/donate.js";
 import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
-import { verifyGithub, createApi, activateApi } from "./commands/publish.js";
+import { verifyGithub, createApi, activateApi, listApis, addEndpoint } from "./commands/publish.js";
 import {
   isAuthenticated,
   getWalletAddress,
@@ -368,6 +368,193 @@ async function consumerMenu(): Promise<void> {
   }
 }
 
+async function promptEndpointDetails(): Promise<{
+  path: string;
+  method: string;
+  price: string;
+  description?: string;
+}> {
+  const answers = await inquirer.prompt<{
+    path: string;
+    method: string;
+    price: string;
+    description: string;
+  }>([
+    {
+      type: "input",
+      name: "path",
+      message: "Endpoint path (e.g. /analyze):",
+      validate: (input: string) =>
+        input.trim().startsWith("/") || "Path must start with /",
+    },
+    {
+      type: "list",
+      name: "method",
+      message: "HTTP method:",
+      choices: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+      default: "GET",
+    },
+    {
+      type: "input",
+      name: "price",
+      message: "Price per call in USD (e.g. 0.001):",
+      default: "0.001",
+      validate: (input: string) => {
+        const n = parseFloat(input);
+        return (!isNaN(n) && n >= 0) || "Enter a non-negative number";
+      },
+    },
+    {
+      type: "input",
+      name: "description",
+      message: "Description (optional):",
+      default: "",
+    },
+  ]);
+
+  return {
+    path: answers.path.trim(),
+    method: answers.method,
+    price: answers.price.trim(),
+    description: answers.description.trim() || undefined,
+  };
+}
+
+async function guidedCreateAndPublish(): Promise<void> {
+  console.log(chalk.bold("\nGuided: Create & Publish API\n"));
+
+  // Step 1: Create the API
+  const apiAnswers = await inquirer.prompt<{
+    name: string;
+    slug: string;
+    url: string;
+    description: string;
+    githubRepo: string;
+  }>([
+    { type: "input", name: "name", message: "API name:" },
+    {
+      type: "input",
+      name: "slug",
+      message: "API slug:",
+      validate: (input: string) =>
+        /^[a-z0-9-]+$/.test(input.trim()) ||
+        "Use lowercase letters, numbers, hyphens",
+    },
+    {
+      type: "input",
+      name: "url",
+      message: "API base URL:",
+      validate: (input: string) =>
+        /^https?:\/\//.test(input.trim()) || "Enter a valid http(s) URL",
+    },
+    {
+      type: "input",
+      name: "description",
+      message: "Description (optional):",
+      default: "",
+    },
+    {
+      type: "input",
+      name: "githubRepo",
+      message: "GitHub repo to link (owner/name, optional):",
+      default: "",
+    },
+  ]);
+
+  let githubToken: string | undefined;
+  if (apiAnswers.githubRepo.trim()) {
+    githubToken = await askRequiredSecret("GitHub PAT for repo linking:");
+  }
+
+  await createApi({
+    name: apiAnswers.name.trim(),
+    slug: apiAnswers.slug.trim(),
+    url: apiAnswers.url.trim(),
+    description: apiAnswers.description.trim() || undefined,
+    githubRepo: apiAnswers.githubRepo.trim() || undefined,
+    githubToken,
+  });
+
+  // Step 2: Add endpoints loop
+  let addMore = true;
+  while (addMore) {
+    const { wantEndpoint } = await inquirer.prompt<{ wantEndpoint: boolean }>([
+      {
+        type: "confirm",
+        name: "wantEndpoint",
+        message: "Add an endpoint?",
+        default: true,
+      },
+    ]);
+
+    if (!wantEndpoint) break;
+
+    const ep = await promptEndpointDetails();
+    const priceUsd = parseFloat(ep.price);
+    console.log(
+      chalk.dim(
+        `  Will send: ${ep.method} ${ep.path} @ $${priceUsd.toFixed(6)}/call`
+      )
+    );
+
+    await addEndpoint(apiAnswers.slug.trim(), {
+      path: ep.path,
+      method: ep.method,
+      price: ep.price,
+      description: ep.description,
+    });
+  }
+
+  // Step 3: Activate
+  const { wantActivate } = await inquirer.prompt<{ wantActivate: boolean }>([
+    {
+      type: "confirm",
+      name: "wantActivate",
+      message: "Activate this API now?",
+      default: true,
+    },
+  ]);
+
+  if (wantActivate) {
+    await activateApi(apiAnswers.slug.trim());
+  }
+}
+
+async function addEndpointToExistingApi(): Promise<void> {
+  console.log(chalk.bold("\nAdd Endpoint to Existing API\n"));
+
+  const apis = await listApis();
+  if (apis.length === 0) return;
+
+  console.log();
+  const { slug } = await inquirer.prompt<{ slug: string }>([
+    {
+      type: "list",
+      name: "slug",
+      message: "Select an API:",
+      choices: apis.map((a) => ({
+        name: `${a.slug} (${a.name || "unnamed"}) - ${a.status}`,
+        value: a.slug,
+      })),
+    },
+  ]);
+
+  const ep = await promptEndpointDetails();
+  const priceUsd = parseFloat(ep.price);
+  console.log(
+    chalk.dim(
+      `  Will send: ${ep.method} ${ep.path} @ $${priceUsd.toFixed(6)}/call`
+    )
+  );
+
+  await addEndpoint(slug, {
+    path: ep.path,
+    method: ep.method,
+    price: ep.price,
+    description: ep.description,
+  });
+}
+
 async function publisherMenu(): Promise<void> {
   while (true) {
     renderHeader();
@@ -377,8 +564,10 @@ async function publisherMenu(): Promise<void> {
         name: "action",
         message: "Publisher",
         choices: [
+          { name: "Guided: Create & Publish API", value: "guided" },
+          { name: "Add endpoint to existing API", value: "add_endpoint" },
+          { name: "List my APIs", value: "list_apis" },
           { name: "Verify GitHub identity", value: "verify_github" },
-          { name: "Create API", value: "create_api" },
           { name: "Activate (publish) API", value: "activate_api" },
           { name: "Back", value: "back" },
         ],
@@ -387,60 +576,15 @@ async function publisherMenu(): Promise<void> {
 
     if (action === "back") return;
 
-    if (action === "verify_github") {
+    if (action === "guided") {
+      await guidedCreateAndPublish();
+    } else if (action === "add_endpoint") {
+      await addEndpointToExistingApi();
+    } else if (action === "list_apis") {
+      await listApis();
+    } else if (action === "verify_github") {
       const token = await askRequiredSecret("GitHub PAT:");
       await verifyGithub({ token });
-    } else if (action === "create_api") {
-      const answers = await inquirer.prompt<{
-        name: string;
-        slug: string;
-        url: string;
-        description: string;
-        githubRepo: string;
-      }>([
-        { type: "input", name: "name", message: "API name:" },
-        {
-          type: "input",
-          name: "slug",
-          message: "API slug:",
-          validate: (input: string) =>
-            /^[a-z0-9-]+$/.test(input.trim()) ||
-            "Use lowercase letters, numbers, hyphens",
-        },
-        {
-          type: "input",
-          name: "url",
-          message: "API base URL:",
-          validate: (input: string) =>
-            /^https?:\/\//.test(input.trim()) || "Enter a valid http(s) URL",
-        },
-        {
-          type: "input",
-          name: "description",
-          message: "Description (optional):",
-          default: "",
-        },
-        {
-          type: "input",
-          name: "githubRepo",
-          message: "GitHub repo to link (owner/name, optional):",
-          default: "",
-        },
-      ]);
-
-      let githubToken: string | undefined;
-      if (answers.githubRepo.trim()) {
-        githubToken = await askRequiredSecret("GitHub PAT for repo linking:");
-      }
-
-      await createApi({
-        name: answers.name.trim(),
-        slug: answers.slug.trim(),
-        url: answers.url.trim(),
-        description: answers.description.trim() || undefined,
-        githubRepo: answers.githubRepo.trim() || undefined,
-        githubToken,
-      });
     } else if (action === "activate_api") {
       const { slug } = await inquirer.prompt<{ slug: string }>([
         {

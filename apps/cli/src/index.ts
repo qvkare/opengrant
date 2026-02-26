@@ -9,7 +9,7 @@ import { donate, claimFunds } from "./commands/donate.js";
 import { stats } from "./commands/stats.js";
 import { init } from "./commands/init.js";
 import { configGet, configSet, configList } from "./commands/config-cmd.js";
-import { verifyGithub, createApi, activateApi } from "./commands/publish.js";
+import { verifyGithub, createApi, activateApi, listApis, addEndpoint } from "./commands/publish.js";
 import { callApi } from "./commands/call.js";
 import { showMainMenu } from "./menu.js";
 
@@ -153,6 +153,20 @@ publishCommand
   .option("--github-repo <owner/name>", "Link to a GitHub repository")
   .option("--github-token <pat>", "GitHub personal access token (for repo linking)")
   .action(createApi);
+
+publishCommand
+  .command("list")
+  .description("List your published APIs")
+  .action(async () => { await listApis(); });
+
+publishCommand
+  .command("add-endpoint <slug>")
+  .description("Add an endpoint to an existing API")
+  .requiredOption("--path <path>", "Endpoint path (e.g. /analyze)")
+  .option("--method <method>", "HTTP method", "GET")
+  .requiredOption("--price <usd>", "Price per call in USD (e.g. 0.001)")
+  .option("--description <desc>", "Endpoint description")
+  .action(addEndpoint);
 
 // ========================
 // Config Commands

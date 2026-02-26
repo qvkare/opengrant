@@ -15,6 +15,54 @@ interface CreateApiOptions {
   description?: string;
 }
 
+interface AddEndpointOptions {
+  path: string;
+  method?: string;
+  price: string;
+  description?: string;
+}
+
+interface ApiInfo {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  baseUrl?: string;
+  endpoints?: { id: string; path: string; method: string; pricePerCall: number }[];
+}
+
+async function apiRequest(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>,
+  extraHeaders?: Record<string, string>
+): Promise<{ ok: boolean; status: number; data: any }> {
+  if (!isAuthenticated()) {
+    throw new Error("Not logged in. Run `opengrant login` first.");
+  }
+
+  const apiUrl = getApiUrl();
+  const token = getToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...extraHeaders,
+  };
+
+  const response = await fetch(`${apiUrl}${path}`, {
+    method,
+    headers,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error((data as any).error || `Failed: ${response.statusText}`);
+  }
+
+  return { ok: true, status: response.status, data };
+}
+
 async function promptGithubToken(option?: string): Promise<string> {
   if (option) return option;
 
@@ -184,6 +232,107 @@ export async function createApi(options: CreateApiOptions): Promise<void> {
     console.log(chalk.dim("  Publish with: ") + chalk.cyan(`opengrant publish activate ${api.slug}`));
   } catch (error) {
     spinner.fail(chalk.red("Failed to create API"));
+    if (error instanceof Error) {
+      console.error(chalk.dim(`  ${error.message}`));
+    }
+  }
+}
+
+export async function listApis(): Promise<ApiInfo[]> {
+  if (!isAuthenticated()) {
+    console.log(chalk.red("Not logged in. Run `opengrant login` first."));
+    return [];
+  }
+
+  const spinner = ora("Fetching your APIs...").start();
+
+  try {
+    const { data } = await apiRequest("GET", "/v1/publisher/apis");
+    const apis = data as ApiInfo[];
+
+    if (apis.length === 0) {
+      spinner.info(chalk.yellow("No APIs found. Create one with `opengrant publish create-api`"));
+      return [];
+    }
+
+    spinner.succeed(chalk.green(`Found ${apis.length} API(s)`));
+    console.log();
+
+    const slugWidth = Math.max(6, ...apis.map((a) => a.slug.length));
+    const nameWidth = Math.max(6, ...apis.map((a) => (a.name || "").length));
+
+    console.log(
+      chalk.bold(
+        `  ${"SLUG".padEnd(slugWidth)}  ${"NAME".padEnd(nameWidth)}  ${"STATUS".padEnd(10)}  ${"ENDPOINTS".padEnd(10)}  BASE URL`
+      )
+    );
+
+    for (const api of apis) {
+      const statusColor = api.status === "active" ? chalk.green : chalk.yellow;
+      const endpointCount = api.endpoints?.length ?? 0;
+      console.log(
+        `  ${api.slug.padEnd(slugWidth)}  ${(api.name || "").padEnd(nameWidth)}  ${statusColor(
+          (api.status || "draft").padEnd(10)
+        )}  ${String(endpointCount).padEnd(10)}  ${chalk.dim(api.baseUrl || "-")}`
+      );
+    }
+
+    return apis;
+  } catch (error) {
+    spinner.fail(chalk.red("Failed to list APIs"));
+    if (error instanceof Error) {
+      console.error(chalk.dim(`  ${error.message}`));
+    }
+    return [];
+  }
+}
+
+export async function addEndpoint(slug: string, options: AddEndpointOptions): Promise<void> {
+  if (!isAuthenticated()) {
+    console.log(chalk.red("Not logged in. Run `opengrant login` first."));
+    return;
+  }
+
+  if (!options.path || !options.price) {
+    console.log(chalk.red("Missing required options: --path, --price"));
+    return;
+  }
+
+  const priceUsd = parseFloat(options.price);
+  if (isNaN(priceUsd) || priceUsd < 0) {
+    console.log(chalk.red("Invalid price. Enter a non-negative USD value (e.g. 0.001)"));
+    return;
+  }
+  const pricePerCall = Math.round(priceUsd * 1_000_000);
+
+  const spinner = ora("Adding endpoint...").start();
+
+  try {
+    // Resolve slug → API id
+    const { data: apis } = await apiRequest("GET", "/v1/publisher/apis");
+    const api = (apis as ApiInfo[]).find((a) => a.slug === slug);
+
+    if (!api) {
+      throw new Error(`API "${slug}" not found. Make sure you own this API.`);
+    }
+
+    const body: Record<string, unknown> = {
+      path: options.path,
+      method: (options.method || "GET").toUpperCase(),
+      pricePerCall,
+    };
+    if (options.description) body.description = options.description;
+
+    const { data } = await apiRequest("POST", `/v1/apis/${api.id}/endpoints`, body);
+
+    spinner.succeed(chalk.green(`Endpoint added to "${api.name || slug}"`));
+    console.log(chalk.dim(`  Path: ${body.method} ${options.path}`));
+    console.log(chalk.dim(`  Price: $${priceUsd.toFixed(6)} per call (${pricePerCall} subunits)`));
+    if (options.description) {
+      console.log(chalk.dim(`  Description: ${options.description}`));
+    }
+  } catch (error) {
+    spinner.fail(chalk.red("Failed to add endpoint"));
     if (error instanceof Error) {
       console.error(chalk.dim(`  ${error.message}`));
     }
