@@ -10,19 +10,22 @@ export function useApiAuth(type: "consumer" | "publisher" = "consumer") {
   const TOKEN_KEY = `${TOKEN_KEY_PREFIX}_${type}`;
   const { address, isConnected, status, wallets } = useWallet();
   const primaryWallet = wallets[0];
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem(`${TOKEN_KEY_PREFIX}_${type}`);
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
   const authenticatingRef = useRef(false);
 
-  // Try to load cached token on mount
-  useEffect(() => {
+  const authenticate = useCallback(async (): Promise<string | null> => {
+    // Check sessionStorage first (another hook instance may have stored it)
     const cached = sessionStorage.getItem(TOKEN_KEY);
     if (cached) {
       setToken(cached);
+      return cached;
     }
-  }, [TOKEN_KEY]);
-
-  const authenticate = useCallback(async (): Promise<string | null> => {
     if (token) return token;
     if (!address || !primaryWallet || authenticatingRef.current) return null;
 
